@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Broker",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/packages/broker/dist/broker.js",
+      "preLaunchTask": "build",
+      "outFiles": ["${workspaceFolder}/packages/broker/dist/**/*.js"],
+      "console": "integratedTerminal"
+    }
+  ]
+}
