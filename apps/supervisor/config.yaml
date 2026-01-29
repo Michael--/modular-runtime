@@ -1,0 +1,10 @@
+services:
+  - name: broker
+    command: node
+    args:
+      - packages/broker/dist/broker.js
+    cwd: .
+    env: {}
+    restart: on-failure
+    maxRestarts: 5
+    restartDelay: 1000

@@ -1,0 +1,22 @@
+{
+  "name": "@modular-runtime/supervisor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/supervisor.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.1.0",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
