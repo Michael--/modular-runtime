@@ -3,15 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "clean": "rimraf generated",
+    "clean": "rimraf dist",
     "lint": "buf lint",
     "gen": "buf generate",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "breaking": "buf breaking --against '.git#branch=main'"
   },
   "exports": {
-    "./*": "./generated/ts/*"
+    "./*": "./dist/*"
   },
   "devDependencies": {
+    "@bufbuild/protobuf": "^2.11.0",
+    "@grpc/grpc-js": "^1.14.3",
+    "@types/node": "^25.1.0",
     "rimraf": "^6.1.2",
     "ts-proto": "^2.11.1"
   }
