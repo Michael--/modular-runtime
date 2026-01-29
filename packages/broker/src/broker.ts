@@ -1,12 +1,17 @@
+/* eslint-disable no-console */
 import * as grpc from '@grpc/grpc-js'
 import {
   BrokerServiceService as BrokerService,
   BrokerServiceServer,
   NotifyServiceChangesResponse,
   RegisterServiceRequest,
+  RegisterServiceResponse,
   LookupServiceRequest,
+  LookupServiceResponse,
   GetAvailableServicesRequest,
+  GetAvailableServicesResponse,
   UnregisterServiceRequest,
+  UnregisterServiceResponse,
   NotifyServiceChangesRequest,
 } from '../../proto/generated/ts/broker/v1/broker'
 
@@ -41,8 +46,8 @@ function serviceChange(s: IService, change: string) {
 // Implement the BrokerService
 const brokerService: BrokerServiceServer = {
   registerService: (
-    call: grpc.ServerUnaryCall<RegisterServiceRequest, any>,
-    callback: grpc.sendUnaryData<any>
+    call: grpc.ServerUnaryCall<RegisterServiceRequest, RegisterServiceResponse>,
+    callback: grpc.sendUnaryData<RegisterServiceResponse>
   ) => {
     const rq = call.request
     console.log(`registerService: ${JSON.stringify(rq)}`)
@@ -61,8 +66,8 @@ const brokerService: BrokerServiceServer = {
     serviceChange(sv, 'added')
   },
   lookupService: (
-    call: grpc.ServerUnaryCall<LookupServiceRequest, any>,
-    callback: grpc.sendUnaryData<any>
+    call: grpc.ServerUnaryCall<LookupServiceRequest, LookupServiceResponse>,
+    callback: grpc.sendUnaryData<LookupServiceResponse>
   ) => {
     const rq = call.request
     console.log(`lookupService: ${JSON.stringify(rq)}`)
@@ -71,8 +76,8 @@ const brokerService: BrokerServiceServer = {
     else callback(null, { url: s.url, port: s.port, error: '' })
   },
   getAvailableServices: (
-    call: grpc.ServerUnaryCall<GetAvailableServicesRequest, any>,
-    callback: grpc.sendUnaryData<any>
+    call: grpc.ServerUnaryCall<GetAvailableServicesRequest, GetAvailableServicesResponse>,
+    callback: grpc.sendUnaryData<GetAvailableServicesResponse>
   ) => {
     const rq = call.request
     console.log(`getAvailableServices: ${JSON.stringify(rq)}`)
@@ -85,8 +90,8 @@ const brokerService: BrokerServiceServer = {
     })
   },
   unregisterService: (
-    call: grpc.ServerUnaryCall<UnregisterServiceRequest, any>,
-    callback: grpc.sendUnaryData<any>
+    call: grpc.ServerUnaryCall<UnregisterServiceRequest, UnregisterServiceResponse>,
+    callback: grpc.sendUnaryData<UnregisterServiceResponse>
   ) => {
     const rq = call.request
     console.log(`unregisterService: ${JSON.stringify(rq)}`)
