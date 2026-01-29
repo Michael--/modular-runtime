@@ -7,6 +7,9 @@
     "gen": "buf generate",
     "breaking": "buf breaking --against '.git#branch=main'"
   },
+  "exports": {
+    "./*": "./generated/ts/*"
+  },
   "devDependencies": {
     "ts-proto": "^2.11.1"
   }

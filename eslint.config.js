@@ -12,6 +12,7 @@ export default [
       "**/dist/**",
       "**/out/**",
       "**/build/**",
+      "**/generated/**",
       "**/*.config.{js,ts}",
       "**/.electron/**",
       "packages/create-electron-ipc/templates/**",
