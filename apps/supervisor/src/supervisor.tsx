@@ -3,7 +3,7 @@ import * as path from 'path'
 import { spawn, ChildProcess, SpawnOptions } from 'child_process'
 import * as yaml from 'js-yaml'
 import { fileURLToPath } from 'url'
-import { Box, Text, render } from 'ink'
+import { Box, Text, render, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 
 const CONFIG_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'config.yaml')
@@ -52,6 +52,15 @@ interface ServiceConfig {
   restartOnUnexpectedExit?: boolean
 }
 
+interface UiConfig {
+  refreshRate?: number
+}
+
+interface Config {
+  services?: ServiceConfig[]
+  ui?: UiConfig
+}
+
 interface ServiceEntry {
   config: ServiceConfig
   process?: ChildProcess
@@ -86,6 +95,7 @@ const outputLog: OutputEntry[] = []
 const updateListeners = new Set<() => void>()
 let shuttingDown = false
 let supervisorStarted = false
+let uiConfig: UiConfig = { refreshRate: 1000 }
 
 function subscribe(listener: () => void): () => void {
   updateListeners.add(listener)
@@ -123,7 +133,7 @@ function pushOutput(service: ServiceEntry, stream: 'stdout' | 'stderr', message:
 
 function loadConfig(): void {
   const configContent = fs.readFileSync(CONFIG_FILE, 'utf8')
-  const config = yaml.load(configContent) as { services?: ServiceConfig[] }
+  const config: Config = yaml.load(configContent) as Config
 
   if (!config?.services?.length) {
     throw new Error('supervisor: config.yaml must define at least one service')
@@ -136,6 +146,10 @@ function loadConfig(): void {
       status: ServiceStatus.Idle,
       shuttingDown: false,
     })
+  }
+
+  if (config.ui) {
+    uiConfig = { ...uiConfig, ...config.ui }
   }
 }
 
@@ -266,6 +280,21 @@ function startAllServices(): void {
   }
 }
 
+function stopService(service: ServiceEntry): void {
+  if (service.pendingRestart) {
+    clearTimeout(service.pendingRestart)
+    service.pendingRestart = undefined
+  }
+
+  service.shuttingDown = true
+  if (service.process) {
+    service.process.kill()
+    pushEvent(`Stopped ${service.config.name}`)
+  } else {
+    pushEvent(`Service ${service.config.name} is not running`)
+  }
+}
+
 function shutdownSupervisor(signal: NodeJS.Signals): void {
   if (shuttingDown) {
     return
@@ -314,7 +343,7 @@ function determineRestartDecision(service: ServiceEntry): RestartDecision {
   return { allow: false, reason: 'restart policy set to never' }
 }
 
-const ServiceRow = ({ service }: { service: ServiceEntry }): JSX.Element => {
+const ServiceRow = ({ service, index }: { service: ServiceEntry; index: number }): JSX.Element => {
   const pid = service.process?.pid ?? '-'
   const exitCode = service.lastExitCode ?? '-'
   const statusMessage = service.statusMessage ? ` (${service.statusMessage})` : ''
@@ -322,6 +351,7 @@ const ServiceRow = ({ service }: { service: ServiceEntry }): JSX.Element => {
   return (
     <Text>
       {'  '}
+      <Text color="yellow">[{index + 1}]</Text>{' '}
       <Text color={getStatusColor(service.status)}>[{service.status}]</Text>{' '}
       <Text color="cyan">{service.config.name}</Text>
       {statusMessage}
@@ -349,15 +379,57 @@ const OutputRow = ({ entry }: { entry: OutputEntry }): JSX.Element => {
 
 const SupervisorApp = (): JSX.Element => {
   const [, forceRender] = useState(0)
+  const [mode, setMode] = useState<'snapshot' | 'live'>('snapshot')
 
-  useEffect(() => subscribe(() => forceRender((tick) => tick + 1)), [])
+  useEffect(() => {
+    const unsubscribe = subscribe(() => forceRender((tick) => tick + 1))
+    let interval: NodeJS.Timeout | undefined
+    if (mode === 'live') {
+      interval = setInterval(() => forceRender((tick) => tick + 1), uiConfig.refreshRate ?? 1000)
+    }
+    return () => {
+      unsubscribe()
+      if (interval) clearInterval(interval)
+    }
+  }, [mode])
+
+  useInput((input, key) => {
+    if (input === 'q' || key.escape) {
+      shutdownSupervisor('SIGINT')
+    } else if (input === 'r') {
+      pushEvent('Manual restart of all services triggered')
+      for (const service of services) {
+        if (service.process) {
+          service.process.kill()
+        }
+      }
+    } else if (input === 'h') {
+      // For now, just log; later we can show a help screen
+      pushEvent('Available commands: q (quit), r (restart all), l (toggle live mode), h (help)')
+    } else if (input === 'l') {
+      setMode((prev) => (prev === 'snapshot' ? 'live' : 'snapshot'))
+      pushEvent(`Switched to ${mode === 'snapshot' ? 'live' : 'snapshot'} mode`)
+    } else if (/^[1-9]$/.test(input)) {
+      const serviceIndex = parseInt(input) - 1
+      if (serviceIndex < services.length) {
+        const service = services[serviceIndex]
+        if (service.process && !service.shuttingDown) {
+          stopService(service)
+        } else {
+          startService(service)
+        }
+      }
+    }
+  })
 
   return (
     <Box flexDirection="column">
-      <Text color="blue">=== Supervisor snapshot @ {new Date().toISOString()} ===</Text>
+      <Text color="blue">
+        === Supervisor {mode} @ {new Date().toISOString()} ===
+      </Text>
       <Text bold>Services:</Text>
-      {services.map((service) => (
-        <ServiceRow key={service.config.name} service={service} />
+      {services.map((service, index) => (
+        <ServiceRow key={service.config.name} service={service} index={index} />
       ))}
       <Text bold>Recent events:</Text>
       {eventLog.length > 0 ? (
@@ -371,6 +443,9 @@ const SupervisorApp = (): JSX.Element => {
       ) : (
         <Text dimColor>{'  '}(no output yet)</Text>
       )}
+      <Text dimColor>
+        Commands: 'q' quit, 'r' restart all, 'l' toggle live mode, '1-9' toggle service, 'h' help
+      </Text>
     </Box>
   )
 }
