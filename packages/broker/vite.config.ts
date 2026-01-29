@@ -8,6 +8,7 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'broker',
     },
+    sourcemap: true,
     rollupOptions: {
       external: ['@grpc/grpc-js', '@modular-runtime/proto'],
     },

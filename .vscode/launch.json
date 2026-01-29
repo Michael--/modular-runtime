@@ -8,6 +8,7 @@
       "program": "${workspaceFolder}/packages/broker/dist/broker.js",
       "preLaunchTask": "build",
       "outFiles": ["${workspaceFolder}/packages/broker/dist/**/*.js"],
+      "sourceMaps": true,
       "console": "integratedTerminal"
     }
   ]
