@@ -134,6 +134,23 @@ function startServer() {
       }
       console.log(`Server is running at ${address}`)
     })
+
+    // Handle shutdown signals
+    process.on('SIGTERM', () => {
+      console.log('Received SIGTERM, shutting down gracefully...')
+      server.tryShutdown(() => {
+        console.log('Server shut down.')
+        process.exit(0)
+      })
+    })
+
+    process.on('SIGINT', () => {
+      console.log('Received SIGINT, shutting down gracefully...')
+      server.tryShutdown(() => {
+        console.log('Server shut down.')
+        process.exit(0)
+      })
+    })
   } catch (e) {
     console.error('Error:', e)
   }
