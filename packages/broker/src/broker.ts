@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import * as grpc from '@grpc/grpc-js'
 import {
-  BrokerServiceService as BrokerService,
+  BrokerServiceService,
   BrokerServiceServer,
   NotifyServiceChangesResponse,
   RegisterServiceRequest,
@@ -121,7 +121,10 @@ const brokerService: BrokerServiceServer = {
 function startServer() {
   try {
     const server = new grpc.Server()
-    server.addService(BrokerService, brokerService)
+    server.addService(
+      BrokerServiceService,
+      brokerService as unknown as grpc.UntypedServiceImplementation
+    )
 
     const address = '127.0.0.1:50051'
     server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err) => {
