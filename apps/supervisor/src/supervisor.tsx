@@ -1,17 +1,14 @@
-/* eslint-disable no-console */
 import * as fs from 'fs'
 import * as path from 'path'
 import { spawn, ChildProcess, SpawnOptions } from 'child_process'
 import * as yaml from 'js-yaml'
 import { fileURLToPath } from 'url'
-
-// Using createRequire to import CommonJS module 'picocolors'
-import { createRequire } from 'node:module'
-const require = createRequire(import.meta.url)
-const pc = require('picocolors')
+import { Box, Text, render } from 'ink'
+import { useEffect, useState } from 'react'
 
 const CONFIG_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'config.yaml')
 const MAX_EVENT_ENTRIES = 8
+const MAX_OUTPUT_ENTRIES = 40
 const DEFAULT_RESTART_TIMEOUT_MS = 2000
 
 enum ServiceStatus {
@@ -24,20 +21,22 @@ enum ServiceStatus {
   Failed = 'failed',
 }
 
-function getStatusColor(status: ServiceStatus): (text: string) => string {
+type StatusColor = 'green' | 'red' | 'yellow' | 'magenta' | 'gray'
+
+function getStatusColor(status: ServiceStatus): StatusColor {
   switch (status) {
     case ServiceStatus.Running:
-      return pc.green
+      return 'green'
     case ServiceStatus.Failed:
     case ServiceStatus.Stopped:
-      return pc.red
+      return 'red'
     case ServiceStatus.Starting:
     case ServiceStatus.Restarting:
-      return pc.yellow
+      return 'yellow'
     case ServiceStatus.WaitingRestart:
-      return pc.magenta
+      return 'magenta'
     default:
-      return pc.gray
+      return 'gray'
   }
 }
 
@@ -64,9 +63,63 @@ interface ServiceEntry {
   pendingRestart?: NodeJS.Timeout
 }
 
+interface EventEntry {
+  timestamp: string
+  message: string
+}
+
+interface OutputEntry {
+  timestamp: string
+  serviceName: string
+  stream: 'stdout' | 'stderr'
+  message: string
+}
+
+interface RestartDecision {
+  allow: boolean
+  reason?: string
+}
+
 const services: ServiceEntry[] = []
-const eventLog: string[] = []
+const eventLog: EventEntry[] = []
+const outputLog: OutputEntry[] = []
+const updateListeners = new Set<() => void>()
 let shuttingDown = false
+let supervisorStarted = false
+
+function subscribe(listener: () => void): () => void {
+  updateListeners.add(listener)
+  return () => {
+    updateListeners.delete(listener)
+  }
+}
+
+function notifyUpdate(): void {
+  for (const listener of updateListeners) {
+    listener()
+  }
+}
+
+function pushEvent(message: string): void {
+  eventLog.unshift({ timestamp: new Date().toISOString(), message })
+  if (eventLog.length > MAX_EVENT_ENTRIES) {
+    eventLog.pop()
+  }
+  notifyUpdate()
+}
+
+function pushOutput(service: ServiceEntry, stream: 'stdout' | 'stderr', message: string): void {
+  outputLog.unshift({
+    timestamp: new Date().toISOString(),
+    serviceName: service.config.name,
+    stream,
+    message,
+  })
+  if (outputLog.length > MAX_OUTPUT_ENTRIES) {
+    outputLog.pop()
+  }
+  notifyUpdate()
+}
 
 function loadConfig(): void {
   const configContent = fs.readFileSync(CONFIG_FILE, 'utf8')
@@ -84,35 +137,6 @@ function loadConfig(): void {
       shuttingDown: false,
     })
   }
-}
-
-function pushEvent(message: string): void {
-  eventLog.unshift(`[${new Date().toISOString()}] ${message}`)
-  if (eventLog.length > MAX_EVENT_ENTRIES) {
-    eventLog.pop()
-  }
-  renderStatus()
-}
-
-function renderStatus(): void {
-  const header = [
-    '',
-    pc.blue(`=== Supervisor snapshot @ ${new Date().toISOString()} ===`),
-    pc.bold('Services:'),
-    ...services.map((service) => {
-      const pid = service.process?.pid ?? '—'
-      const exitCode = service.lastExitCode ?? '—'
-      const statusMessage = service.statusMessage ? ` (${service.statusMessage})` : ''
-      const statusColor = getStatusColor(service.status)
-      return `  ${statusColor(`[${service.status}]`)} ${pc.cyan(service.config.name)}${statusMessage} | pid=${pid} restarts=${service.restarts} lastExit=${exitCode}`
-    }),
-    pc.bold('Recent events:'),
-    ...(eventLog.length
-      ? eventLog.map((event) => pc.blue(`  [SUPERVISOR] ${event}`))
-      : ['  (no recent events)']),
-  ]
-
-  console.log(header.join('\n'))
 }
 
 function resolveCwd(cwd?: string): string {
@@ -133,9 +157,7 @@ function logServiceOutput(service: ServiceEntry, chunk: Buffer, stream: 'stdout'
     if (!rawLine) {
       continue
     }
-    const color = stream === 'stderr' ? pc.red : pc.green
-    const prefix = color(`[${service.config.name}][${stream === 'stderr' ? 'ERR' : 'OUT'}]`)
-    console.log(`${prefix} ${rawLine}`)
+    pushOutput(service, stream, rawLine)
   }
 }
 
@@ -230,8 +252,8 @@ function startService(service: ServiceEntry): void {
 
   proc.on('spawn', () => {
     service.status = ServiceStatus.Running
-    service.statusMessage = `running (pid ${proc.pid})`
-    pushEvent(`Service ${service.config.name} is running (pid ${proc.pid})`)
+    service.statusMessage = `running (pid ${proc.pid ?? '-'})`
+    pushEvent(`Service ${service.config.name} is running (pid ${proc.pid ?? '-'})`)
   })
 
   proc.on('exit', (code, signal) => handleExit(service, code, signal))
@@ -269,21 +291,6 @@ function shutdownSupervisor(signal: NodeJS.Signals): void {
   }, 1000)
 }
 
-function main(): void {
-  loadConfig()
-  pushEvent(`Loaded ${services.length} services from config`)
-  startAllServices()
-
-  process.on('SIGINT', () => shutdownSupervisor('SIGINT'))
-  process.on('SIGTERM', () => shutdownSupervisor('SIGTERM'))
-}
-
-main()
-interface RestartDecision {
-  allow: boolean
-  reason?: string
-}
-
 function determineRestartDecision(service: ServiceEntry): RestartDecision {
   const policy = service.config.restart ?? 'never'
   const maxRestarts = service.config.maxRestarts ?? 5
@@ -306,3 +313,85 @@ function determineRestartDecision(service: ServiceEntry): RestartDecision {
 
   return { allow: false, reason: 'restart policy set to never' }
 }
+
+const ServiceRow = ({ service }: { service: ServiceEntry }): JSX.Element => {
+  const pid = service.process?.pid ?? '-'
+  const exitCode = service.lastExitCode ?? '-'
+  const statusMessage = service.statusMessage ? ` (${service.statusMessage})` : ''
+
+  return (
+    <Text>
+      {'  '}
+      <Text color={getStatusColor(service.status)}>[{service.status}]</Text>{' '}
+      <Text color="cyan">{service.config.name}</Text>
+      {statusMessage}
+      {' | '}pid={pid} restarts={service.restarts} lastExit={exitCode}
+    </Text>
+  )
+}
+
+const EventRow = ({ entry }: { entry: EventEntry }): JSX.Element => (
+  <Text color="blue">
+    {'  '}[SUPERVISOR] [{entry.timestamp}] {entry.message}
+  </Text>
+)
+
+const OutputRow = ({ entry }: { entry: OutputEntry }): JSX.Element => {
+  const streamLabel = entry.stream === 'stderr' ? 'ERR' : 'OUT'
+  const color = entry.stream === 'stderr' ? 'red' : 'green'
+
+  return (
+    <Text color={color}>
+      {'  '}[{entry.serviceName}][{streamLabel}][{entry.timestamp}] {entry.message}
+    </Text>
+  )
+}
+
+const SupervisorApp = (): JSX.Element => {
+  const [, forceRender] = useState(0)
+
+  useEffect(() => subscribe(() => forceRender((tick) => tick + 1)), [])
+
+  return (
+    <Box flexDirection="column">
+      <Text color="blue">=== Supervisor snapshot @ {new Date().toISOString()} ===</Text>
+      <Text bold>Services:</Text>
+      {services.map((service) => (
+        <ServiceRow key={service.config.name} service={service} />
+      ))}
+      <Text bold>Recent events:</Text>
+      {eventLog.length > 0 ? (
+        eventLog.map((entry, index) => <EventRow key={`event-${index}`} entry={entry} />)
+      ) : (
+        <Text dimColor>{'  '}(no recent events)</Text>
+      )}
+      <Text bold>Recent output:</Text>
+      {outputLog.length > 0 ? (
+        outputLog.map((entry, index) => <OutputRow key={`output-${index}`} entry={entry} />)
+      ) : (
+        <Text dimColor>{'  '}(no output yet)</Text>
+      )}
+    </Box>
+  )
+}
+
+function startSupervisor(): void {
+  if (supervisorStarted) {
+    return
+  }
+  supervisorStarted = true
+
+  loadConfig()
+  pushEvent(`Loaded ${services.length} services from config`)
+  startAllServices()
+
+  process.on('SIGINT', () => shutdownSupervisor('SIGINT'))
+  process.on('SIGTERM', () => shutdownSupervisor('SIGTERM'))
+}
+
+function main(): void {
+  startSupervisor()
+  render(<SupervisorApp />)
+}
+
+main()
