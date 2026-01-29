@@ -6,6 +6,7 @@ package-lock.json
 dist/
 out/
 build/
+generated/
 *.tsbuildinfo
 
 # Electron

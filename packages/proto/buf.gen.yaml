@@ -1,0 +1,10 @@
+version: v2
+plugins:
+  - local: protoc-gen-ts_proto
+    out: generated/ts
+    opt:
+      - esModuleInterop=true
+      - forceLong=string
+      - useOptionals=messages
+      - outputServices=grpc-js
+      - env=node

@@ -1,0 +1,10 @@
+version: v2
+# name: buf.build/michael--/modular-runtime
+
+lint:
+  use:
+    - DEFAULT
+
+breaking:
+  use:
+    - FILE

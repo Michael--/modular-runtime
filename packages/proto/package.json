@@ -1,0 +1,13 @@
+{
+  "name": "@modular-runtime/proto",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "buf lint",
+    "gen": "buf generate",
+    "breaking": "buf breaking --against '.git#branch=main'"
+  },
+  "devDependencies": {
+    "ts-proto": "^2.11.1"
+  }
+}
