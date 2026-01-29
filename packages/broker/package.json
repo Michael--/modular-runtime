@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "clean": "rimraf dist",
-    "build": "tsc",
+    "build": "vite build",
+    "dev": "vite build --watch",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
@@ -14,7 +15,10 @@
   "devDependencies": {
     "@grpc/grpc-js": "^1.10.9",
     "@modular-runtime/proto": "workspace:*",
+    "@types/node": "^25.1.0",
     "rimraf": "^6.1.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vite": "^7.3.1",
+    "vite-plugin-dts": "^4.5.4"
   }
 }
