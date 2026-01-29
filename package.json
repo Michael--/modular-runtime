@@ -1,0 +1,47 @@
+{
+  "name": "modular-runtime",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Modular, polyglot services for breaking down large local monoliths — without Kubernetes or cloud infrastructure. Designed to work together inside embedded environments.",
+  "packageManager": "pnpm@10.28.1",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "clean": "pnpm -r --no-bail --if-present run clean",
+    "test": "pnpm -r --if-present run test",
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "spell": "cspell \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "prepare": "husky",
+    "ci": "node ci.js"
+  },
+  "keywords": [
+    "electron",
+    "typescript"
+  ],
+  "author": "Michael Rieck (Michael--) <mr@number10.de>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=10.28.1"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.3.1",
+    "@commitlint/config-conventional": "^20.3.1",
+    "@eslint/js": "^9.39.2",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.53.1",
+    "cspell": "^9.6.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.17"
+  }
+}
