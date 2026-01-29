@@ -13,7 +13,7 @@ export default defineConfig({
     },
     sourcemap: true,
     rollupOptions: {
-      external: [...new Set([...builtins, 'js-yaml'])],
+      external: Array.from(new Set([...builtins, 'js-yaml'])),
     },
   },
 })

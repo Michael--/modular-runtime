@@ -3,6 +3,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import * as yaml from 'js-yaml'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
 
 interface ServiceConfig {
   name: string
@@ -25,7 +27,7 @@ interface Service {
 const services: Service[] = []
 
 function loadConfig(): void {
-  const configPath = path.join(__dirname, '..', 'config.yaml')
+  const configPath = path.join(dirname(fileURLToPath(import.meta.url)), '..', 'config.yaml')
   const configContent = fs.readFileSync(configPath, 'utf8')
   const config = yaml.load(configContent) as { services: ServiceConfig[] }
 

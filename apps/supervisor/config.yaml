@@ -3,7 +3,7 @@ services:
     command: node
     args:
       - packages/broker/dist/broker.js
-    cwd: .
+    cwd: ../..
     env: {}
     restart: on-failure
     maxRestarts: 5
