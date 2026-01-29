@@ -10,6 +10,15 @@
       "outFiles": ["${workspaceFolder}/packages/broker/dist/**/*.js"],
       "sourceMaps": true,
       "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug Supervisor",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/apps/supervisor/dist/supervisor.js",
+      "preLaunchTask": "build-supervisor",
+      "outFiles": ["${workspaceFolder}/apps/supervisor/dist/**/*.js"],
+      "console": "integratedTerminal"
     }
   ]
 }

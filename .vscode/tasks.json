@@ -16,6 +16,22 @@
       "options": {
         "cwd": "${workspaceFolder}/packages/broker"
       }
+    },
+    {
+      "label": "build-supervisor",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["run", "build"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/apps/supervisor"
+      }
     }
   ]
 }
