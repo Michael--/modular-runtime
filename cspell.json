@@ -8,6 +8,7 @@
     "backpressure",
     "beforeunload",
     "browserview",
+    "bufbuild",
     "buildinfo",
     "codegen",
     "codesign",
@@ -79,5 +80,8 @@
     ".git",
     "*.tsbuildinfo"
   ],
-  "ignoreRegExpList": ["/\\b[a-f0-9]{32,}\\b/gi", "/\\b[A-Z]{2,}_[A-Z_]+\\b/g"]
+  "ignoreRegExpList": [
+    "/\\b[a-f0-9]{32,}\\b/gi",
+    "/\\b[A-Z]{2,}_[A-Z_]+\\b/g"
+  ]
 }
