@@ -8,7 +8,7 @@ import {
   GetAvailableServicesRequest,
   UnregisterServiceRequest,
   NotifyServiceChangesRequest,
-} from '../../proto/generated/ts/broker/v1/broker.ts'
+} from '../../proto/generated/ts/broker/v1/broker.js'
 
 interface IService {
   name: string
