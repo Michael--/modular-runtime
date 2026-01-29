@@ -5,6 +5,11 @@ import { spawn, ChildProcess, SpawnOptions } from 'child_process'
 import * as yaml from 'js-yaml'
 import { fileURLToPath } from 'url'
 
+// Using createRequire to import CommonJS module 'picocolors'
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
+const pc = require('picocolors')
+
 const CONFIG_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'config.yaml')
 const MAX_EVENT_ENTRIES = 8
 const DEFAULT_RESTART_TIMEOUT_MS = 2000
@@ -17,6 +22,23 @@ enum ServiceStatus {
   Restarting = 'restarting',
   Stopped = 'stopped',
   Failed = 'failed',
+}
+
+function getStatusColor(status: ServiceStatus): (text: string) => string {
+  switch (status) {
+    case ServiceStatus.Running:
+      return pc.green
+    case ServiceStatus.Failed:
+    case ServiceStatus.Stopped:
+      return pc.red
+    case ServiceStatus.Starting:
+    case ServiceStatus.Restarting:
+      return pc.yellow
+    case ServiceStatus.WaitingRestart:
+      return pc.magenta
+    default:
+      return pc.gray
+  }
 }
 
 interface ServiceConfig {
@@ -75,16 +97,19 @@ function pushEvent(message: string): void {
 function renderStatus(): void {
   const header = [
     '',
-    `=== Supervisor snapshot @ ${new Date().toISOString()} ===`,
-    'Services:',
+    pc.blue(`=== Supervisor snapshot @ ${new Date().toISOString()} ===`),
+    pc.bold('Services:'),
     ...services.map((service) => {
       const pid = service.process?.pid ?? '—'
       const exitCode = service.lastExitCode ?? '—'
       const statusMessage = service.statusMessage ? ` (${service.statusMessage})` : ''
-      return `  [${service.status}] ${service.config.name}${statusMessage} | pid=${pid} restarts=${service.restarts} lastExit=${exitCode}`
+      const statusColor = getStatusColor(service.status)
+      return `  ${statusColor(`[${service.status}]`)} ${pc.cyan(service.config.name)}${statusMessage} | pid=${pid} restarts=${service.restarts} lastExit=${exitCode}`
     }),
-    'Recent events:',
-    ...(eventLog.length ? eventLog : ['  (no recent events)']),
+    pc.bold('Recent events:'),
+    ...(eventLog.length
+      ? eventLog.map((event) => pc.blue(`  [SUPERVISOR] ${event}`))
+      : ['  (no recent events)']),
   ]
 
   console.log(header.join('\n'))
@@ -108,7 +133,8 @@ function logServiceOutput(service: ServiceEntry, chunk: Buffer, stream: 'stdout'
     if (!rawLine) {
       continue
     }
-    const prefix = `[${service.config.name}][${stream === 'stderr' ? 'ERR' : 'OUT'}]`
+    const color = stream === 'stderr' ? pc.red : pc.green
+    const prefix = color(`[${service.config.name}][${stream === 'stderr' ? 'ERR' : 'OUT'}]`)
     console.log(`${prefix} ${rawLine}`)
   }
 }
