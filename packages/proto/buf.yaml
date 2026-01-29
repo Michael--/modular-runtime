@@ -1,6 +1,11 @@
 version: v2
 # name: buf.build/michael--/modular-runtime
 
+modules:
+  - path: .
+    excludes:
+      - node_modules
+
 lint:
   use:
     - STANDARD
