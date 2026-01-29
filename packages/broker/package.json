@@ -3,16 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "clean": "rimraf dist",
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "exports": {
     "./*": "./dist/*"
   },
   "devDependencies": {
-    "@modular-runtime/proto": "workspace:*",
     "@grpc/grpc-js": "^1.10.9",
+    "@modular-runtime/proto": "workspace:*",
+    "rimraf": "^6.1.2",
     "typescript": "^5.5.4"
   }
 }
