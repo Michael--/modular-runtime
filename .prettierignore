@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+.lintstagedrc.js
+commitlint.config.js
+pnpm-workspace.yaml
+eslint.config.js
+
+# Build outputs
+dist
+out
+build
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.idea
+.vscode
+
+# Coverage
+coverage
+
+# Generated files
+*-generated.ts
+*-generated.js
+
+# Template files (keep placeholders intact)
+packages/create-electron-ipc/templates/**
