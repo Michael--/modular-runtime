@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "clean": "rimraf dist",
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "vite build",
+    "dev": "vite build --watch",
     "start": "node dist/supervisor.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
@@ -14,7 +14,8 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.1.0",
     "rimraf": "^6.1.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vite": "^7.3.1"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
