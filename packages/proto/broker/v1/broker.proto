@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package broker.v1;
+
+// Base message for service information
+message ServiceInfo {
+  string interface_name = 1;
+  string role = 2; // Optional: specific role name
+}
+
+// Request for unregistering a service
+message UnregisterServiceRequest {
+  string interface_name = 1;
+  string role = 2; // Optional: specific role name
+}
+
+// Response for unregistering a service
+message UnregisterServiceResponse {}
+
+// Message for service registration
+message RegisterServiceRequest {
+  ServiceInfo info = 1;
+  string url = 2;
+  int32 port = 3;
+}
+
+// Response for service registration
+message RegisterServiceResponse {}
+
+// Message for service lookup request
+message LookupServiceRequest {
+  string interface_name = 1;
+  string role = 2; // Optional: role to filter the services
+}
+
+// Message for service lookup response
+message LookupServiceResponse {
+  string url = 1;
+  int32 port = 2;
+  string error = 3; // Optional: error message if service not found
+}
+
+// Request for getting available services
+message GetAvailableServicesRequest {}
+
+// Message for available services
+message GetAvailableServicesResponse {
+  repeated RegisterServiceRequest services = 1;
+}
+
+// Request for notifying service changes
+message NotifyServiceChangesRequest {}
+
+// Message for service change notification
+message NotifyServiceChangesResponse {
+  UnregisterServiceRequest info = 1;
+  string url = 2;
+  int32 port = 3;
+  string change_type = 4; // "registered" or "unregistered"
+}
+
+// Service definition for the broker
+service BrokerService {
+  // Register a service
+  rpc RegisterService(RegisterServiceRequest) returns (RegisterServiceResponse);
+
+  // Lookup a service
+  rpc LookupService(LookupServiceRequest) returns (LookupServiceResponse);
+
+  // Get all available services
+  rpc GetAvailableServices(GetAvailableServicesRequest) returns (GetAvailableServicesResponse);
+
+  // Unregister a service
+  rpc UnregisterService(UnregisterServiceRequest) returns (UnregisterServiceResponse);
+
+  // Notify service changes
+  rpc NotifyServiceChanges(NotifyServiceChangesRequest) returns (stream NotifyServiceChangesResponse);
+}

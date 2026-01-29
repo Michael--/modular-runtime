@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "clean": "rimraf generated",
     "lint": "buf lint",
     "gen": "buf generate",
     "breaking": "buf breaking --against '.git#branch=main'"
@@ -11,6 +12,7 @@
     "./*": "./generated/ts/*"
   },
   "devDependencies": {
+    "rimraf": "^6.1.2",
     "ts-proto": "^2.11.1"
   }
 }
