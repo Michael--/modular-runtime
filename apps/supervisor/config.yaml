@@ -8,3 +8,4 @@ services:
     restart: on-failure
     maxRestarts: 5
     restartDelay: 1000
+    restartOnUnexpectedExit: true
