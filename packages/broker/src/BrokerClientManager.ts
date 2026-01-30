@@ -186,7 +186,9 @@ export class BrokerClientManager extends ClientManager<BrokerServiceClient> {
   public async shutdown() {
     const promises = this.registeredServices.map((service) =>
       this.unregisterService(service).catch((err) =>
-        console.error('Error unregistering service:', err)
+        console.error(
+          `Error unregistering service ${service.name}: ${err.details || err.message || err}`
+        )
       )
     )
     this.registeredServices = []
