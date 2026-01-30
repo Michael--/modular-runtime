@@ -112,22 +112,22 @@ function notifyUpdate(): void {
 }
 
 function pushEvent(message: string): void {
-  eventLog.unshift({ timestamp: new Date().toISOString(), message })
+  eventLog.push({ timestamp: new Date().toISOString(), message })
   if (eventLog.length > MAX_EVENT_ENTRIES) {
-    eventLog.pop()
+    eventLog.shift()
   }
   notifyUpdate()
 }
 
 function pushOutput(service: ServiceEntry, stream: 'stdout' | 'stderr', message: string): void {
-  outputLog.unshift({
+  outputLog.push({
     timestamp: new Date().toISOString(),
     serviceName: service.config.name,
     stream,
     message,
   })
   if (outputLog.length > MAX_OUTPUT_ENTRIES) {
-    outputLog.pop()
+    outputLog.shift()
   }
   notifyUpdate()
 }
