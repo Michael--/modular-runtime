@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "dist",
     "module": "ES2022",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts", "../../proto/generated/ts/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

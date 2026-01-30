@@ -5,7 +5,7 @@ import {
   NotifyServiceChangesResponse,
   RegisterServiceRequest,
 } from '../../proto/generated/ts/broker/v1/broker'
-import { ClientManager } from './ClientManager'
+import { ClientManager } from '../../common/dist/index.js'
 
 /**
  * Interface representing extended service information.
