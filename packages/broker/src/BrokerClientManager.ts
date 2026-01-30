@@ -184,7 +184,11 @@ export class BrokerClientManager extends ClientManager<BrokerServiceClient> {
    * @returns {Promise<void>} A promise that resolves when all services are unregistered.
    */
   public async shutdown() {
-    const promises = this.registeredServices.map((service) => this.unregisterService(service))
+    const promises = this.registeredServices.map((service) =>
+      this.unregisterService(service).catch((err) =>
+        console.error('Error unregistering service:', err)
+      )
+    )
     this.registeredServices = []
     await Promise.all(promises)
   }

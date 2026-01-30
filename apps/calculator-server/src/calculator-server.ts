@@ -89,7 +89,11 @@ async function startServer() {
 // Centralized shutdown logic
 async function handleShutdown() {
   console.log('Shutdown signal received')
-  await brokerManager?.shutdown()
+  try {
+    await brokerManager?.shutdown()
+  } catch (error) {
+    console.error('Error during shutdown:', error)
+  }
   process.exit()
 }
 
