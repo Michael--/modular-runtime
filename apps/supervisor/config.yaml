@@ -32,6 +32,19 @@ services:
     restartDelay: 3000
     restartOnUnexpectedExit: true
     logColor: green
+  - name: calculator-client-rust
+    command: pnpm
+    args:
+      - -C
+      - apps/calculator-client-rust
+      - start
+    cwd: ../..
+    env: {}
+    restart: always
+    maxRestarts: 5
+    restartDelay: 3000
+    restartOnUnexpectedExit: true
+    logColor: magenta
 
 ui:
   refreshRate: 1000

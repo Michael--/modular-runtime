@@ -8,3 +8,7 @@ plugins:
       - useOptionals=messages
       - outputServices=grpc-js
       - env=node
+  - local: protoc-gen-prost
+    out: generated/rust
+  - local: protoc-gen-tonic
+    out: generated/rust
