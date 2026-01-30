@@ -59,9 +59,9 @@ export abstract class ClientManager<TClient extends grpc.Client> {
   /**
    * Connects to the gRPC server and sets up the client and client stream.
    * If the connection fails, it schedules a reconnect.
-   * @private
+   * @protected
    */
-  private connect() {
+  protected connect() {
     try {
       if (this.client != null) return
       this.client = new this.clientConstructor(this.address, credentials.createInsecure())

@@ -2,7 +2,7 @@ services:
   - name: broker
     command: node
     args:
-      - packages/broker/dist/broker.js
+      - packages/broker/dist/cli.js
     cwd: ../..
     env: {}
     restart: always

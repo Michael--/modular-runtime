@@ -4,9 +4,12 @@ import dts from 'vite-plugin-dts'
 export default defineConfig({
   build: {
     lib: {
-      entry: 'src/index.ts',
+      entry: {
+        broker: 'src/index.ts',
+        cli: 'src/cli.ts',
+      },
       formats: ['es'],
-      fileName: 'broker',
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     sourcemap: true,
     rollupOptions: {

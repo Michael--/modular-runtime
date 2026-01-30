@@ -46,6 +46,7 @@ export class BrokerClientManager extends ClientManager<BrokerServiceClient> {
    */
   private constructor(url: string, port: number) {
     super(url, port, BrokerServiceClient.serviceName, BrokerServiceClient)
+    this.connect()
   }
 
   /**

@@ -117,43 +117,39 @@ const brokerService: BrokerServiceServer = {
   },
 }
 
-// Start the gRPC server
-function startServer() {
-  try {
-    const server = new grpc.Server()
-    server.addService(
-      BrokerServiceService,
-      brokerService as unknown as grpc.UntypedServiceImplementation
-    )
-
-    const address = '127.0.0.1:50051'
-    server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err) => {
-      if (err) {
-        console.error('Failed to bind server:', err)
-        return
-      }
-      console.log(`Server is running at ${address}`)
-    })
-
-    // Handle shutdown signals
-    process.on('SIGTERM', () => {
-      console.log('Received SIGTERM, shutting down gracefully...')
-      server.tryShutdown(() => {
-        console.log('Server shut down.')
-        process.exit(0)
-      })
-    })
-
-    process.on('SIGINT', () => {
-      console.log('Received SIGINT, shutting down gracefully...')
-      server.tryShutdown(() => {
-        console.log('Server shut down.')
-        process.exit(0)
-      })
-    })
-  } catch (e) {
-    console.error('Error:', e)
-  }
+/**
+ * Creates a Broker gRPC server with all services registered.
+ * @returns {grpc.Server} The configured gRPC server instance.
+ */
+export const createBrokerServer = (): grpc.Server => {
+  const server = new grpc.Server()
+  server.addService(
+    BrokerServiceService,
+    brokerService as unknown as grpc.UntypedServiceImplementation
+  )
+  return server
 }
 
-startServer()
+/**
+ * Starts the Broker gRPC server.
+ * @param {string} [address="127.0.0.1:50051"] - The address to bind.
+ * @returns {Promise<grpc.Server>} The running gRPC server.
+ * @throws {Error} If binding fails.
+ */
+export const startBrokerServer = async (
+  address: string = '127.0.0.1:50051'
+): Promise<grpc.Server> => {
+  const server = createBrokerServer()
+  await new Promise<void>((resolve, reject) => {
+    server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      server.start()
+      resolve()
+    })
+  })
+  console.log(`Server is running at ${address}`)
+  return server
+}
