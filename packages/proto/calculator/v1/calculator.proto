@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package calculator.v1;
+
+// Enum for operations
+enum Operation {
+  ADD = 0;
+  SUBTRACT = 1;
+  MULTIPLY = 2;
+  DIVIDE = 3;
+}
+
+// Request message for calculation
+message CalculationRequest {
+  double operand1 = 1;
+  double operand2 = 2;
+  Operation operation = 3;
+}
+
+// Response message for calculation
+message CalculationResponse {
+  double result = 1;
+  string error = 2; // Optional: error message
+}
+
+// Calculator service
+service CalculatorService {
+  rpc calculate(CalculationRequest) returns (CalculationResponse);
+}

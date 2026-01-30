@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "generated/ts",
-    "outDir": "dist",
-    "emitDeclarationOnly": true
+    "outDir": "dist"
   },
   "include": ["generated/ts/**/*.ts"]
 }
