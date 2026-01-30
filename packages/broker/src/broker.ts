@@ -146,7 +146,6 @@ export const startBrokerServer = async (
         reject(err)
         return
       }
-      server.start()
       resolve()
     })
   })
