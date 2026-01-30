@@ -57,6 +57,33 @@ importers:
         specifier: ^4.0.17
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
+  apps/calculator-client:
+    devDependencies:
+      '@grpc/grpc-js':
+        specifier: ^1.10.9
+        version: 1.14.3
+      '@modular-runtime/broker':
+        specifier: workspace:*
+        version: link:../../packages/broker
+      '@modular-runtime/proto':
+        specifier: workspace:*
+        version: link:../../packages/proto
+      '@types/node':
+        specifier: ^25.1.0
+        version: 25.1.0
+      rimraf:
+        specifier: ^6.1.2
+        version: 6.1.2
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@25.1.0)(rollup@4.57.0)(typescript@5.9.3)(vite@7.3.1(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2))
+
   apps/calculator-server:
     devDependencies:
       '@grpc/grpc-js':

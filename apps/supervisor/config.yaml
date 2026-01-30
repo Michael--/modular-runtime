@@ -21,6 +21,17 @@ services:
     restartDelay: 3000
     restartOnUnexpectedExit: true
     logColor: cyan
+  - name: calculator-client
+    command: node
+    args:
+      - apps/calculator-client/dist/calculator-client.js
+    cwd: ../..
+    env: {}
+    restart: always
+    maxRestarts: 5
+    restartDelay: 3000
+    restartOnUnexpectedExit: true
+    logColor: green
 
 ui:
   refreshRate: 1000
