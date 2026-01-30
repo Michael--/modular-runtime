@@ -54,6 +54,7 @@ interface ServiceConfig {
 
 interface UiConfig {
   refreshRate?: number
+  mode?: 'auto' | 'manual'
 }
 
 interface Config {
@@ -458,7 +459,11 @@ function startSupervisor(): void {
 
   loadConfig()
   pushEvent(`Loaded ${services.length} services from config`)
-  startAllServices()
+  if (uiConfig.mode !== 'manual') {
+    startAllServices()
+  } else {
+    pushEvent('Manual start mode: services not started automatically')
+  }
 
   process.on('SIGINT', () => shutdownSupervisor('SIGINT'))
   process.on('SIGTERM', () => shutdownSupervisor('SIGTERM'))
