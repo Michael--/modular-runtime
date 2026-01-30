@@ -18,6 +18,7 @@ export abstract class ClientManager<TClient extends grpc.Client> {
   public onDisconnected?: () => void
   private reconnectDelay: number = 3000 // 3 seconds
   private deadlineDelay: number = 10000 // 10 seconds
+  private reconnectTimer: NodeJS.Timeout | null = null
 
   /**
    * Creates an instance of ClientManager.
@@ -41,7 +42,6 @@ export abstract class ClientManager<TClient extends grpc.Client> {
         this.deadlineDelay / 1000
       }s`
     )
-    this.scheduleReconnect()
   }
 
   /**
@@ -73,6 +73,7 @@ export abstract class ClientManager<TClient extends grpc.Client> {
           this.client = null
           this.scheduleReconnect()
         } else {
+          this.clearReconnectTimer()
           console.log('waitForReady: done')
           if (this.client == null) throw new Error('Client not connected')
           // call internal connect and also notify any listeners
@@ -114,10 +115,19 @@ export abstract class ClientManager<TClient extends grpc.Client> {
    */
   private scheduleReconnect() {
     if (this.client != null) return
+    if (this.reconnectTimer != null) return
     console.log(`Reconnecting in ${this.reconnectDelay / 1000} seconds...`)
-    setTimeout(() => {
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (this.client != null) return
       console.log(`Reconnecting ${this.serviceName} at ${this.address} now...`)
       this.connect()
     }, this.reconnectDelay)
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer == null) return
+    clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = null
   }
 }
