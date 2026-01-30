@@ -50,6 +50,7 @@ interface ServiceConfig {
   maxRestarts?: number
   restartDelay?: number
   restartOnUnexpectedExit?: boolean
+  logColor?: string
 }
 
 interface UiConfig {
@@ -83,6 +84,7 @@ interface OutputEntry {
   serviceName: string
   stream: 'stdout' | 'stderr'
   message: string
+  color?: string
 }
 
 interface RestartDecision {
@@ -120,11 +122,13 @@ function pushEvent(message: string): void {
 }
 
 function pushOutput(service: ServiceEntry, stream: 'stdout' | 'stderr', message: string): void {
+  const color = service.config.logColor || (stream === 'stderr' ? 'red' : 'green')
   outputLog.push({
     timestamp: new Date().toISOString(),
     serviceName: service.config.name,
     stream,
     message,
+    color,
   })
   if (outputLog.length > MAX_OUTPUT_ENTRIES) {
     outputLog.shift()
@@ -369,7 +373,7 @@ const EventRow = ({ entry }: { entry: EventEntry }): JSX.Element => (
 
 const OutputRow = ({ entry }: { entry: OutputEntry }): JSX.Element => {
   const streamLabel = entry.stream === 'stderr' ? 'ERR' : 'OUT'
-  const color = entry.stream === 'stderr' ? 'red' : 'green'
+  const color = entry.color || (entry.stream === 'stderr' ? 'red' : 'green')
 
   return (
     <Text color={color}>
