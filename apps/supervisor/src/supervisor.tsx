@@ -308,21 +308,46 @@ function shutdownSupervisor(signal: NodeJS.Signals): void {
   shuttingDown = true
   pushEvent(`Supervisor received ${signal}; shutting down services`)
 
-  for (const service of services) {
+  const runningServices = services.filter((s) => s.process)
+  let remaining = runningServices.length
+
+  if (remaining === 0) {
+    pushEvent('No services running, supervisor exiting')
+    process.exit(0)
+    return
+  }
+
+  for (const service of runningServices) {
     service.shuttingDown = true
     if (service.pendingRestart) {
       clearTimeout(service.pendingRestart)
       service.pendingRestart = undefined
     }
     if (service.process) {
-      service.process.kill()
+      service.process.on('exit', () => {
+        remaining--
+        pushEvent(`Service ${service.config.name} stopped`)
+        if (remaining === 0) {
+          pushEvent('All services stopped, supervisor exiting')
+          process.exit(0)
+        }
+      })
+      service.process.kill('SIGTERM')
     }
   }
 
+  // Force kill after 5 seconds if not all stopped
   setTimeout(() => {
-    pushEvent('Supervisor exiting now')
-    process.exit(0)
-  }, 1000)
+    if (remaining > 0) {
+      pushEvent('Force killing remaining services')
+      for (const service of runningServices) {
+        if (service.process) {
+          service.process.kill('SIGKILL')
+        }
+      }
+      process.exit(0)
+    }
+  }, 5000)
 }
 
 function determineRestartDecision(service: ServiceEntry): RestartDecision {
