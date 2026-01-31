@@ -21,6 +21,7 @@ const parseDistribution = (value: string): GeneratorDistribution => {
 }
 
 const parseArgs = (argv: string[]): GeneratorConfig => {
+  const normalizedArgs = argv[0] === '--' ? argv.slice(1) : argv
   const config: GeneratorConfig = {
     eventCount: 100000,
     outputFile: 'events.ndjson',
@@ -29,15 +30,15 @@ const parseArgs = (argv: string[]): GeneratorConfig => {
   }
 
   const getValue = (index: number): string => {
-    const value = argv[index]
+    const value = normalizedArgs[index]
     if (value == null) {
       throw new Error('Missing value for argument')
     }
     return value
   }
 
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i]
+  for (let i = 0; i < normalizedArgs.length; i += 1) {
+    const arg = normalizedArgs[i]
     if (arg === '--help' || arg === '-h') {
       console.log(usage)
       process.exit(0)

@@ -12,6 +12,7 @@
     "test": "pnpm -r --if-present run test",
     "lint": "pnpm -r --if-present run lint",
     "typecheck": "pnpm -r --if-present run typecheck",
+    "demo:monolith": "node examples/demo-scenarios/run-monolith.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "spell": "cspell \"**/*.{ts,tsx,js,jsx,json,md}\"",
