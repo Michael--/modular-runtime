@@ -11,6 +11,7 @@ generated/
 target/
 examples/demo-scenarios/*
 !examples/demo-scenarios/README.md
+!examples/demo-scenarios/RESULTS.md
 
 # Electron
 .electron/
