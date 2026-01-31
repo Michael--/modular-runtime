@@ -17,4 +17,7 @@ export default defineConfig({
       external: externals,
     },
   },
+  test: {
+    environment: 'node',
+  },
 })
