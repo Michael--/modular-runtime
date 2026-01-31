@@ -1,0 +1,20 @@
+{
+  "name": "@modular-runtime/event-generator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "start": "node dist/event-generator.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@modular-runtime/pipeline-common": "workspace:*",
+    "@types/node": "^25.1.0",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.5.4",
+    "vite": "^7.3.1"
+  }
+}

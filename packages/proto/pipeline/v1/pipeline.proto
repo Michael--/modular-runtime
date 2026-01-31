@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package pipeline.v1;
+
+// Ingest service streams raw events from an input source.
+service IngestService {
+  rpc StreamEvents(StreamEventsRequest) returns (stream StreamEventsResponse);
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+// Parse service validates and normalizes raw events.
+service ParseService {
+  rpc ParseEvents(stream ParseEventsRequest) returns (stream ParseEventsResponse);
+}
+
+// Rules service applies filtering and enrichment rules.
+service RulesService {
+  rpc ApplyRules(stream ApplyRulesRequest) returns (stream ApplyRulesResponse);
+}
+
+// Aggregate service aggregates enriched events.
+service AggregateService {
+  rpc Aggregate(stream AggregateRequest) returns (stream AggregateResponse);
+}
+
+message StreamEventsRequest {
+  string input_file = 1;
+  int32 batch_size = 2;
+  int64 max_events = 3;
+}
+
+message GetStatusRequest {
+  bool include_metrics = 1;
+}
+
+message StreamEventsResponse {
+  Event event = 1;
+}
+
+message GetStatusResponse {
+  IngestStatus status = 1;
+}
+
+message ParseEventsRequest {
+  Event event = 1;
+}
+
+message ParseEventsResponse {
+  ParsedEvent event = 1;
+}
+
+message ApplyRulesRequest {
+  ParsedEvent event = 1;
+}
+
+message ApplyRulesResponse {
+  EnrichedEvent event = 1;
+}
+
+message AggregateRequest {
+  EnrichedEvent event = 1;
+}
+
+message AggregateResponse {
+  AggregateResult result = 1;
+}
+
+message IngestStatus {
+  int64 queued_events = 1;
+  int64 streamed_events = 2;
+  bool healthy = 3;
+}
+
+message Event {
+  string raw_json = 1;
+  int64 sequence = 2;
+}
+
+message ParsedEvent {
+  string type = 1;
+  string user = 2;
+  int64 value = 3;
+  int64 timestamp = 4;
+  int64 sequence = 5;
+}
+
+message EnrichedEvent {
+  ParsedEvent event = 1;
+  map<string, string> metadata = 2;
+  bool passed_rules = 3;
+}
+
+message AggregateResult {
+  string key = 1;
+  int64 count = 2;
+  int64 sum = 3;
+  double avg = 4;
+}

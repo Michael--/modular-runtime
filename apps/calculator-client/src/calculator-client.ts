@@ -23,7 +23,7 @@ async function someTestCalculations() {
     }
     return new Promise((resolve, reject) => {
       if (calculatorClient == null) return reject(new Error('Client not existing'))
-      calculatorClient.Calculate(request, (error, response) => {
+      calculatorClient.calculate(request, (error, response) => {
         if (error) {
           console.error(`Error: ${error.message}`)
           reject(error)

@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "types": ["node"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@modular-runtime/pipeline-common": ["packages/pipeline-common/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "../../packages/pipeline-common/src/**/*.ts"]
+}

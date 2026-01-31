@@ -65,7 +65,8 @@
     "vitest",
     "webcontents",
     "yourapp",
-    "yourcompany"
+    "yourcompany",
+    "zipf"
   ],
   "flagWords": [],
   "ignorePaths": [
