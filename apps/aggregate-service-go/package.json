@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "gen": "node scripts/gen-proto.mjs",
     "start": "go run ."
   }
 }

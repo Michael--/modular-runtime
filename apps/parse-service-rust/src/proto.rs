@@ -8,13 +8,6 @@ pub mod broker {
       "/../../packages/proto/generated/rust/broker.v1.rs"
     ));
   }
-
-  pub mod v1_tonic {
-    include!(concat!(
-      env!("CARGO_MANIFEST_DIR"),
-      "/../../packages/proto/generated/rust/broker.v1.tonic.rs"
-    ));
-  }
 }
 
 pub mod pipeline {
@@ -22,13 +15,6 @@ pub mod pipeline {
     include!(concat!(
       env!("CARGO_MANIFEST_DIR"),
       "/../../packages/proto/generated/rust/pipeline.v1.rs"
-    ));
-  }
-
-  pub mod v1_tonic {
-    include!(concat!(
-      env!("CARGO_MANIFEST_DIR"),
-      "/../../packages/proto/generated/rust/pipeline.v1.tonic.rs"
     ));
   }
 }
