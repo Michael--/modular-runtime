@@ -10,6 +10,7 @@ import (
   "os"
   "os/signal"
   "syscall"
+  "time"
 
   brokerpb "aggregate-service-go/broker/v1"
   pipelinepb "aggregate-service-go/pipeline/v1"
@@ -129,7 +130,7 @@ func main() {
   log.Printf("Aggregate service listening on %s:%d", *host, *port)
 
   if !*noBroker {
-    ctx, cancel := context.WithTimeout(context.Background(), grpc.DefaultDialTimeout)
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
 
     if err := registerWithBroker(ctx, *host, *port, *broker); err != nil {

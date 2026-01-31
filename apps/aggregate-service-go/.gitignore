@@ -1,0 +1,8 @@
+# Generated protobuf code
+broker/
+calculator/
+pipeline/
+
+# Go build artifacts
+aggregate-service-go
+go.sum

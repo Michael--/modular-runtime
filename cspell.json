@@ -79,7 +79,8 @@
     "pnpm-lock.yaml",
     "package-lock.json",
     ".git",
-    "*.tsbuildinfo"
+    "*.tsbuildinfo",
+    "DEMO_PLAN.md"
   ],
   "ignoreRegExpList": [
     "/\\b[a-f0-9]{32,}\\b/gi",

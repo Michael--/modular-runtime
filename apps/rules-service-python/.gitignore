@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Generated protobuf code (regenerated from proto files)
+src/broker/
+src/pipeline/

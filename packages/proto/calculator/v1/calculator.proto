@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package calculator.v1;
 
+option go_package = "calculator/v1";
+
 // Enum for operations
 enum Operation {
   OPERATION_UNSPECIFIED = 0;

@@ -573,7 +573,7 @@ examples/
 7. [x] Ingest service (TypeScript)
 8. [x] Parse service (Rust + TypeScript fallback)
 9. [x] Rules + aggregate + sink (Python + Go + TypeScript fallback)
-10. [ ] Integration mit Broker (pipeline wiring pending)
+10. [x] Integration mit Broker (pipeline wiring complete, orchestrator created)
 
 ### Sprint 4: Benchmarking (2 Tage)
 

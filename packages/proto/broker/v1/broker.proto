@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package broker.v1;
 
+option go_package = "broker/v1";
+
 // Base message for service information
 message ServiceInfo {
   string interface_name = 1;
