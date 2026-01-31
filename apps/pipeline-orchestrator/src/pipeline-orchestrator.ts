@@ -136,23 +136,45 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
   let aggregateCount = 0
   let sinkCount = 0
 
+  // Start timing after connection setup
+  const startTime = Date.now()
+  let firstEventTime: number | null = null
+
   const ingestStream = ingestClient.streamEvents(request)
   const parseStream = parseClient.parseEvents()
   const rulesStream = rulesClient.applyRules()
   const aggregateStream = aggregateClient.aggregate()
   const sinkStream = sinkClient.writeResults((err, response: WriteResultsResponse | undefined) => {
+    const endTime = Date.now()
+    const totalDuration = endTime - startTime
+    const processingDuration = firstEventTime ? endTime - firstEventTime : totalDuration
+
     if (err) {
       console.error('Sink error:', err)
       return
     }
+
     console.log(
       `\n✓ Pipeline complete! Written ${response?.written || 0} results to ${config.outputFile}`
     )
+    console.log('\n=== Performance Metrics ===')
+    console.log(`Total events processed: ${ingestCount}`)
+    console.log(
+      `Events passed rules: ${rulesCount} (${((rulesCount / ingestCount) * 100).toFixed(1)}%)`
+    )
+    console.log(
+      `Processing time: ${processingDuration}ms (${(processingDuration / 1000).toFixed(2)}s)`
+    )
+    console.log(`Throughput: ${((ingestCount / processingDuration) * 1000).toFixed(0)} events/sec`)
+    console.log(`Avg latency per event: ${(processingDuration / ingestCount).toFixed(3)}ms`)
     process.exit(0)
   })
 
   // Wire up the pipeline
   ingestStream.on('data', (response: StreamEventsResponse) => {
+    if (firstEventTime === null) {
+      firstEventTime = Date.now()
+    }
     ingestCount += 1
     if (ingestCount % 10000 === 0) {
       process.stdout.write(`\rIngested: ${ingestCount}`)
