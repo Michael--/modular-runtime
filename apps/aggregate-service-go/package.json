@@ -1,0 +1,8 @@
+{
+  "name": "@modular-runtime/aggregate-service-go",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "go run ."
+  }
+}
