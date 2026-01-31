@@ -2,8 +2,8 @@
 import * as grpc from '@grpc/grpc-js'
 import {
   Operation,
-  CalculationRequest,
-  CalculationResponse,
+  CalculateRequest,
+  CalculateResponse,
   CalculatorServiceClient,
   CalculatorServiceServer,
   CalculatorServiceService,
@@ -37,15 +37,15 @@ function brokerManagerInstance() {
 }
 
 // Function to perform the calculation
-function calculate(request: CalculationRequest): number {
+function calculate(request: CalculateRequest): number {
   switch (request.operation) {
-    case Operation.ADD:
+    case Operation.OPERATION_ADD:
       return request.operand1 + request.operand2
-    case Operation.SUBTRACT:
+    case Operation.OPERATION_SUBTRACT:
       return request.operand1 - request.operand2
-    case Operation.MULTIPLY:
+    case Operation.OPERATION_MULTIPLY:
       return request.operand1 * request.operand2
-    case Operation.DIVIDE:
+    case Operation.OPERATION_DIVIDE:
       return request.operand1 / request.operand2
     default:
       throw new Error('Invalid operation')
@@ -54,8 +54,8 @@ function calculate(request: CalculationRequest): number {
 
 const calculatorService: CalculatorServiceServer = {
   calculate: function (
-    call: ServerUnaryCall<CalculationRequest, CalculationResponse>,
-    callback: sendUnaryData<CalculationResponse>
+    call: ServerUnaryCall<CalculateRequest, CalculateResponse>,
+    callback: sendUnaryData<CalculateResponse>
   ): void {
     const rq = call.request
     const result = calculate(rq)

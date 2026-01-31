@@ -2,7 +2,7 @@
 import { BrokerClientManager } from '../../../packages/broker/src'
 import {
   Operation,
-  CalculationRequest,
+  CalculateRequest,
   CalculatorServiceClient,
 } from '../../../packages/proto/generated/ts/calculator/v1/calculator'
 import { credentials } from '@grpc/grpc-js'
@@ -16,27 +16,27 @@ async function someTestCalculations() {
     operand2: number,
     operation: Operation
   ): Promise<number> => {
-    const request: CalculationRequest = {
+    const request: CalculateRequest = {
       operand1: operand1,
       operand2: operand2,
       operation: operation,
     }
     return new Promise((resolve, reject) => {
       if (calculatorClient == null) return reject(new Error('Client not existing'))
-      calculatorClient.calculate(request, (error, response) => {
+      calculatorClient.Calculate(request, (error, response) => {
         if (error) {
           console.error(`Error: ${error.message}`)
           reject(error)
         } else {
           const operationSymbol = (op: Operation) => {
             switch (op) {
-              case Operation.ADD:
+              case Operation.OPERATION_ADD:
                 return '+'
-              case Operation.SUBTRACT:
+              case Operation.OPERATION_SUBTRACT:
                 return '-'
-              case Operation.MULTIPLY:
+              case Operation.OPERATION_MULTIPLY:
                 return '*'
-              case Operation.DIVIDE:
+              case Operation.OPERATION_DIVIDE:
                 return '/'
               default:
                 return '?'
@@ -52,7 +52,7 @@ async function someTestCalculations() {
   }
 
   const value = () => Math.round(Math.random() * 10)
-  const operation = () => Math.round(Math.random() * 3) as Operation
+  const operation = () => (Math.floor(Math.random() * 4) + 1) as Operation
   try {
     await calculator(value(), value(), operation())
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

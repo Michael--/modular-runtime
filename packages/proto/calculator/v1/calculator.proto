@@ -4,26 +4,27 @@ package calculator.v1;
 
 // Enum for operations
 enum Operation {
-  ADD = 0;
-  SUBTRACT = 1;
-  MULTIPLY = 2;
-  DIVIDE = 3;
+  OPERATION_UNSPECIFIED = 0;
+  OPERATION_ADD = 1;
+  OPERATION_SUBTRACT = 2;
+  OPERATION_MULTIPLY = 3;
+  OPERATION_DIVIDE = 4;
 }
 
 // Request message for calculation
-message CalculationRequest {
+message CalculateRequest {
   double operand1 = 1;
   double operand2 = 2;
   Operation operation = 3;
 }
 
 // Response message for calculation
-message CalculationResponse {
+message CalculateResponse {
   double result = 1;
   string error = 2; // Optional: error message
 }
 
 // Calculator service
 service CalculatorService {
-  rpc calculate(CalculationRequest) returns (CalculationResponse);
+  rpc Calculate(CalculateRequest) returns (CalculateResponse);
 }

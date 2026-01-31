@@ -4,7 +4,7 @@ use proto::broker::v1::{
   broker_service_client::BrokerServiceClient, GetAvailableServicesRequest, LookupServiceRequest,
 };
 use proto::calculator::v1::{
-  calculator_service_client::CalculatorServiceClient, CalculationRequest, Operation,
+  calculator_service_client::CalculatorServiceClient, CalculateRequest, Operation,
 };
 use rand::Rng;
 use std::{error::Error, time::Duration};
@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
       }
       _ = interval.tick() => {
         let (a, b, op) = random_calculation();
-        let request = CalculationRequest {
+        let request = CalculateRequest {
           operand1: a,
           operand2: b,
           operation: op as i32,
@@ -131,10 +131,10 @@ fn random_calculation() -> (f64, f64, Operation) {
   let mut rng = rand::thread_rng();
   let operand1 = rng.gen_range(0.0..=10.0);
   let operand2 = rng.gen_range(0.0..=10.0);
-  let op = match rng.gen_range(0..=3) {
-    0 => Operation::Add,
-    1 => Operation::Subtract,
-    2 => Operation::Multiply,
+  let op = match rng.gen_range(1..=4) {
+    1 => Operation::Add,
+    2 => Operation::Subtract,
+    3 => Operation::Multiply,
     _ => Operation::Divide,
   };
   (operand1, operand2, op)
@@ -146,5 +146,6 @@ fn operation_symbol(operation: Operation) -> &'static str {
     Operation::Subtract => "-",
     Operation::Multiply => "*",
     Operation::Divide => "/",
+    Operation::Unspecified => "?",
   }
 }

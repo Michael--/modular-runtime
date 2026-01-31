@@ -141,18 +141,18 @@ namespace
 
   calculator::v1::Operation RandomOperation(std::mt19937 &rng)
   {
-    std::uniform_int_distribution<int> op_dist(0, 3);
+    std::uniform_int_distribution<int> op_dist(1, 4);
     const int value = op_dist(rng);
     switch (value)
     {
-    case 0:
-      return calculator::v1::ADD;
     case 1:
-      return calculator::v1::SUBTRACT;
+      return calculator::v1::OPERATION_ADD;
     case 2:
-      return calculator::v1::MULTIPLY;
+      return calculator::v1::OPERATION_SUBTRACT;
+    case 3:
+      return calculator::v1::OPERATION_MULTIPLY;
     default:
-      return calculator::v1::DIVIDE;
+      return calculator::v1::OPERATION_DIVIDE;
     }
   }
 
@@ -160,13 +160,13 @@ namespace
   {
     switch (operation)
     {
-    case calculator::v1::ADD:
+    case calculator::v1::OPERATION_ADD:
       return "+";
-    case calculator::v1::SUBTRACT:
+    case calculator::v1::OPERATION_SUBTRACT:
       return "-";
-    case calculator::v1::MULTIPLY:
+    case calculator::v1::OPERATION_MULTIPLY:
       return "*";
-    case calculator::v1::DIVIDE:
+    case calculator::v1::OPERATION_DIVIDE:
       return "/";
     default:
       return "?";
@@ -244,16 +244,16 @@ int main()
       const double b = value_dist(rng);
       const auto operation = RandomOperation(rng);
 
-      calculator::v1::CalculationRequest request;
+      calculator::v1::CalculateRequest request;
       request.set_operand1(a);
       request.set_operand2(b);
       request.set_operation(operation);
 
-      calculator::v1::CalculationResponse response;
+      calculator::v1::CalculateResponse response;
       grpc::ClientContext context;
       context.set_deadline(
           std::chrono::system_clock::now() + std::chrono::seconds(kRpcTimeoutSeconds));
-      const grpc::Status status = calculator_stub->calculate(&context, request, &response);
+      const grpc::Status status = calculator_stub->Calculate(&context, request, &response);
       if (!status.ok())
       {
         std::cerr << "Calculation failed: " << status.error_message() << std::endl;
