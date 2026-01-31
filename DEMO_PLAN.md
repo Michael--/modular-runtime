@@ -570,10 +570,10 @@ examples/
 
 ### Sprint 3: Split Services (3-4 Tage)
 
-7. Ingest service
-8. Parse service (Go)
-9. Rules + aggregate + sink
-10. Integration mit Broker
+7. [x] Ingest service (TypeScript scaffold)
+8. [x] Parse service (TypeScript scaffold; Rust planned)
+9. [x] Rules + aggregate + sink (TypeScript scaffold; Python/Go planned)
+10. [ ] Integration mit Broker (pipeline wiring pending)
 
 ### Sprint 4: Benchmarking (2 Tage)
 

@@ -23,6 +23,11 @@ service AggregateService {
   rpc Aggregate(stream AggregateRequest) returns (stream AggregateResponse);
 }
 
+// Sink service writes aggregated results to the final output.
+service SinkService {
+  rpc WriteResults(stream WriteResultsRequest) returns (WriteResultsResponse);
+}
+
 message StreamEventsRequest {
   string input_file = 1;
   int32 batch_size = 2;
@@ -63,6 +68,14 @@ message AggregateRequest {
 
 message AggregateResponse {
   AggregateResult result = 1;
+}
+
+message WriteResultsRequest {
+  AggregateResult result = 1;
+}
+
+message WriteResultsResponse {
+  int64 written = 1;
 }
 
 message IngestStatus {
