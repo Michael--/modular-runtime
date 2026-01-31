@@ -9,7 +9,8 @@ build/
 generated/
 *.tsbuildinfo
 target/
-examples/demo-scenarios/
+examples/demo-scenarios/*
+!examples/demo-scenarios/README.md
 
 # Electron
 .electron/

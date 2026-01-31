@@ -558,15 +558,15 @@ examples/
 
 ### Sprint 1: Foundation (1-2 Tage)
 
-1. Proto definitions
-2. Shared types package
-3. Event generator (basic)
+1. [x] Proto definitions
+2. [x] Shared types package
+3. [x] Event generator (basic)
 
 ### Sprint 2: Monolith (2-3 Tage)
 
-4. Monolith implementation
-5. Basic metrics
-6. CLI + config
+4. [x] Monolith implementation
+5. [x] Basic metrics
+6. [x] CLI + config
 
 ### Sprint 3: Split Services (3-4 Tage)
 
