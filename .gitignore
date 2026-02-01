@@ -9,9 +9,7 @@ build/
 generated/
 *.tsbuildinfo
 target/
-examples/demo-scenarios/*
-!examples/demo-scenarios/README.md
-!examples/demo-scenarios/RESULTS.md
+examples/demo-scenarios/*.ndjson
 
 # Electron
 .electron/

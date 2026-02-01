@@ -186,14 +186,14 @@ const main = async () => {
   const config = parseArgs(process.argv.slice(2))
 
   if (config.build) {
-    await runCommand('pnpm', ['-C', 'apps/event-generator', 'build'])
-    await runCommand('pnpm', ['-C', 'apps/event-pipeline-monolith', 'build'])
+    await runCommand('pnpm', ['-C', 'apps/demo-domain/event-generator', 'build'])
+    await runCommand('pnpm', ['-C', 'apps/demo-domain/event-pipeline-monolith', 'build'])
   }
 
   if (config.generate) {
     await runCommand('pnpm', [
       '-C',
-      'apps/event-generator',
+      'apps/demo-domain/event-generator',
       'start',
       '--',
       '--count',
@@ -214,6 +214,7 @@ const main = async () => {
   const monolithBinary = join(
     repoRoot,
     'apps',
+    'demo-domain',
     'event-pipeline-monolith',
     'build',
     'event-pipeline-monolith'
