@@ -10,6 +10,7 @@ import {
   AggregateServiceService,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline'
 import { createAggregator } from './aggregate'
+import { processEnrichedWorkItem } from './workitem-processor'
 
 interface AggregateConfig {
   host: string
@@ -96,11 +97,26 @@ const startAggregateServer = async (config: AggregateConfig): Promise<grpc.Serve
   const aggregateService: AggregateServiceServer = {
     aggregate: (call) => {
       const aggregator = createAggregator()
+      const workItemResults: any[] = []
 
       call.on('data', (request: AggregateRequest) => {
         if (!request.event) {
           return
         }
+
+        // Handle WorkItems
+        if (request.event.event?.type === 'work-item') {
+          try {
+            const enrichedJSON = request.event.event.user
+            const result = processEnrichedWorkItem(enrichedJSON)
+            workItemResults.push(result)
+            return
+          } catch (error) {
+            console.warn('Failed to process WorkItem:', error)
+            return
+          }
+        }
+
         aggregator.add(request.event)
       })
 
@@ -110,11 +126,24 @@ const startAggregateServer = async (config: AggregateConfig): Promise<grpc.Serve
           const response: AggregateResponse = { result }
           call.write(response)
         })
+
+        // Send WorkItem results as individual results
+        workItemResults.forEach((item) => {
+          const workItemRes = {
+            key: item.work_item_id,
+            count: '0',
+            sum: String(Math.round(item.vector_checksum)),
+            avg: item.final_score,
+          }
+          call.write({ result: workItemRes })
+        })
+
         call.end()
       })
     },
     aggregateBatch: (call) => {
       const aggregator = createAggregator()
+      const workItemResults: any[] = []
 
       call.on('data', (request: AggregateBatchRequest) => {
         if (!request.events || request.events.length === 0) {
@@ -122,12 +151,35 @@ const startAggregateServer = async (config: AggregateConfig): Promise<grpc.Serve
         }
 
         request.events.forEach((event) => {
+          // Handle WorkItems
+          if (event.event?.type === 'work-item') {
+            try {
+              const enrichedJSON = event.event.user
+              const result = processEnrichedWorkItem(enrichedJSON)
+              workItemResults.push(result)
+            } catch (error) {
+              console.warn('Failed to process WorkItem in batch:', error)
+            }
+            return
+          }
+
           aggregator.add(event)
         })
       })
 
       call.on('end', () => {
         const results = aggregator.results()
+
+        // Add WorkItem results as individual results
+        workItemResults.forEach((item) => {
+          results.push({
+            key: item.work_item_id,
+            count: '0',
+            sum: String(Math.round(item.vector_checksum)),
+            avg: item.final_score,
+          })
+        })
+
         const response = { results }
         call.write(response)
         call.end()

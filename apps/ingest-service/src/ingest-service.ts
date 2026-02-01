@@ -151,6 +151,11 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
         payloadSize: PayloadSize.MEDIUM,
         computeIterations: 500,
       }
+
+      console.log(
+        `[ingest] WorkloadMode: ${workloadMode} (EVENTS=${WorkloadMode.EVENTS}, WORK_ITEMS=${WorkloadMode.WORK_ITEMS})`
+      )
+
       let cancelled = false
 
       call.on('cancelled', () => {

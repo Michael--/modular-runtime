@@ -22,6 +22,8 @@ import {
   ApplyRulesBatchResponse,
   AggregateBatchRequest,
   AggregateBatchResponse,
+  WorkloadMode,
+  PayloadSize,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline.js'
 
 interface PipelineConfig {
@@ -30,6 +32,9 @@ interface PipelineConfig {
   maxEvents: number
   enableBatching: boolean
   batchSize: number
+  workloadMode: WorkloadMode
+  payloadSize: PayloadSize
+  computeIterations: number
   ingestHost: string
   ingestPort: number
   parseHost: string
@@ -48,6 +53,9 @@ const DEFAULT_CONFIG: PipelineConfig = {
   maxEvents: 0, // 0 means all
   enableBatching: false,
   batchSize: 100,
+  workloadMode: WorkloadMode.EVENTS,
+  payloadSize: PayloadSize.MEDIUM,
+  computeIterations: 500,
   ingestHost: '127.0.0.1',
   ingestPort: 6001,
   parseHost: '127.0.0.1',
@@ -68,6 +76,9 @@ Options:
   --max-events <number>   Max events to process (default: all)
   --enable-batching       Enable batching mode
   --batch-size <number>   Batch size (default: ${DEFAULT_CONFIG.batchSize})
+  --workload <mode>       Workload mode: events|work-items|mixed (default: events)
+  --payload-size <size>   Payload size: small|medium|large (default: medium)
+  --iterations <number>   Compute iterations (default: ${DEFAULT_CONFIG.computeIterations})
   -h, --help              Show this help message
 `
 
@@ -118,6 +129,42 @@ const parseArgs = (argv: string[]): PipelineConfig => {
       i += 1
       continue
     }
+
+    if (arg === '--workload') {
+      const mode = getValue(i + 1)
+      if (mode === 'events') {
+        config.workloadMode = WorkloadMode.EVENTS
+      } else if (mode === 'work-items') {
+        config.workloadMode = WorkloadMode.WORK_ITEMS
+      } else if (mode === 'mixed') {
+        config.workloadMode = WorkloadMode.MIXED
+      } else {
+        throw new Error(`Invalid workload mode: ${mode}`)
+      }
+      i += 1
+      continue
+    }
+
+    if (arg === '--payload-size') {
+      const size = getValue(i + 1)
+      if (size === 'small') {
+        config.payloadSize = PayloadSize.SMALL
+      } else if (size === 'medium') {
+        config.payloadSize = PayloadSize.MEDIUM
+      } else if (size === 'large') {
+        config.payloadSize = PayloadSize.LARGE
+      } else {
+        throw new Error(`Invalid payload size: ${size}`)
+      }
+      i += 1
+      continue
+    }
+
+    if (arg === '--iterations') {
+      config.computeIterations = Number(getValue(i + 1))
+      i += 1
+      continue
+    }
   }
 
   return config
@@ -155,6 +202,15 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     batchSize: config.batchSize,
     maxEvents: config.maxEvents.toString(),
     enableBatching: config.enableBatching,
+    workloadMode: config.workloadMode,
+    workloadConfig:
+      config.workloadMode !== WorkloadMode.EVENTS
+        ? {
+            workRatio: 1.0,
+            payloadSize: config.payloadSize,
+            computeIterations: config.computeIterations,
+          }
+        : undefined,
   }
 
   let ingestCount = 0

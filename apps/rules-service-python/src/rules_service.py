@@ -75,7 +75,7 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
             self.metrics.record_recv((time.perf_counter() - recv_start) * 1000)
 
             process_start = time.perf_counter()
-            
+
             # Check if this is a WorkItem (type == "work-item")
             if request.event.type == "work-item":
                 try:
@@ -83,9 +83,9 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
                     processed_item = json.loads(request.event.user)
                     enriched_item = process_work_item(processed_item)
                     enriched_json = json.dumps(enriched_item)
-                    
+
                     self.metrics.record_processing((time.perf_counter() - process_start) * 1000)
-                    
+
                     # Return enriched WorkItem
                     enriched = pipeline_pb2.EnrichedEvent(
                         event=request.event,
@@ -94,7 +94,7 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
                     )
                     # Store enriched WorkItem in metadata
                     enriched.event.user = enriched_json
-                    
+
                     send_start = time.perf_counter()
                     response = pipeline_pb2.ApplyRulesResponse(event=enriched)
                     self.metrics.record_send((time.perf_counter() - send_start) * 1000)
@@ -103,7 +103,7 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
                 except Exception as e:
                     logging.warning("Failed to process WorkItem: %s", e)
                     continue
-            
+
             # Normal event processing
             enriched = apply_rules(request.event)
             self.metrics.record_processing((time.perf_counter() - process_start) * 1000)
@@ -136,7 +136,7 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
                         processed_item = json.loads(event.user)
                         enriched_item = process_work_item(processed_item)
                         enriched_json = json.dumps(enriched_item)
-                        
+
                         enriched = pipeline_pb2.EnrichedEvent(
                             event=event,
                             metadata={"workload": "compute-heavy"},
@@ -152,7 +152,7 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
                     enriched = apply_rules(event)
                     if enriched is not None:
                         enriched_events.append(enriched)
-                        
+
             self.metrics.record_processing_count(
                 (time.perf_counter() - process_start) * 1000, len(request.events)
             )

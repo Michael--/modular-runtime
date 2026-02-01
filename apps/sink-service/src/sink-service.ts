@@ -103,6 +103,17 @@ const parseArgs = (argv: string[]): SinkConfig => {
 }
 
 const formatResult = (result: NonNullable<WriteResultsRequest['result']>): string => {
+  // Check if this is a WorkItemResult by looking for workItemId
+  if (result.key.startsWith('w-')) {
+    // WorkItem result - include all fields
+    return JSON.stringify({
+      workItemId: result.key,
+      vectorChecksum: result.sum,
+      finalScore: result.avg,
+      timestamp: Math.floor(result.count / 1000), // Reused count as timestamp
+    })
+  }
+  // Regular event result
   return `{"key":"${result.key}","count":${result.count},"sum":${result.sum},"avg":${result.avg}}`
 }
 
