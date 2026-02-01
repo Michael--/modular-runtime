@@ -306,54 +306,126 @@ Implement a **Compute-Heavy Workload Mode:**
 
 ## Running the Demos
 
+All benchmarks can be run using convenient package scripts from the repository root.
+
+### Prerequisites
+
+```bash
+# Build all services (one-time setup)
+pnpm build
+```
+
+### Monolith Benchmarks (100k events)
+
+```bash
+pnpm demo:monolith:run           # ~1.4s, 44k events/sec
+pnpm demo:monolith:verify        # With result verification
+```
+
+### Split Pipeline Benchmarks (100k events)
+
+**Baseline (no batching):**
+
+```bash
+pnpm demo:split:baseline         # batch_size=1: ~4.0s, 25k events/sec
+```
+
+**With end-to-end batching:**
+
+```bash
+pnpm demo:split:batch10          # batch_size=10: ~1.5s, 67k events/sec (1.52x vs monolith)
+pnpm demo:split:batch50          # batch_size=50: ~1.3s, 76k events/sec (1.72x vs monolith)
+pnpm demo:split:batch100         # batch_size=100: ~1.3s, 77k events/sec (1.75x vs monolith) ⭐
+pnpm demo:split:batch1000        # batch_size=1000: ~1.4s, 74k events/sec (1.67x vs monolith)
+```
+
+**Full end-to-end test (with build + event generation):**
+
+```bash
+pnpm demo:split:full             # Complete pipeline test with batch_size=100
+```
+
+### Custom Configuration
+
+For custom event counts or batch sizes, use the underlying scripts directly:
+
+```bash
+# Monolith
+node examples/demo-scenarios/run-monolith.mjs <count> [--verify]
+
+# Split pipeline
+node examples/demo-scenarios/run-split-pipeline.mjs <count> \
+  [--enable-batching] \
+  [--batch-size <size>] \
+  [--no-build] \
+  [--no-generate]
+```
+
+### Legacy Commands (deprecated)
+
+```bash
+pnpm demo:run-monolith           # Use: pnpm demo:monolith:run
+pnpm demo:run-split              # Use: pnpm demo:split:baseline
+```
+
+---
+
+## Detailed Benchmark Results
+
 ### 100k Events - No Batching (Baseline)
 
 ```bash
-pnpm demo:run-monolith           # Monolith: ~1.4s, 44k/s
-pnpm demo:run-split              # Split: ~4.0s, 25k/s
+pnpm demo:monolith:run           # Monolith: ~1.4s, 44k/s
+pnpm demo:split:baseline         # Split: ~4.0s, 25k/s
 ```
 
 ### 100k Events - With End-to-End Batching 🚀
 
 ```bash
 # Batch size 10 (small batches)
-node examples/demo-scenarios/run-split-pipeline.mjs 10000 --enable-batching --batch-size 10 --no-build --no-generate
+pnpm demo:split:batch10
 # Result: 67k events/sec (1.52x faster than monolith)
 
 # Batch size 50 (good balance)
-node examples/demo-scenarios/run-split-pipeline.mjs 10000 --enable-batching --batch-size 50 --no-build --no-generate
+pnpm demo:split:batch50
 # Result: 76k events/sec (1.72x faster than monolith)
 
 # Batch size 100 (optimal) ⭐
-node examples/demo-scenarios/run-split-pipeline.mjs 10000 --enable-batching --batch-size 100 --no-build --no-generate
+pnpm demo:split:batch100
 # Result: 77k events/sec (1.75x faster than monolith)
 
 # Batch size 1000 (large batches)
-node examples/demo-scenarios/run-split-pipeline.mjs 10000 --enable-batching --batch-size 1000 --no-build --no-generate
+pnpm demo:split:batch1000
 # Result: 74k events/sec (1.67x faster than monolith)
 ```
 
 ### 1M Events
 
 ```bash
-pnpm demo:monolith -- --count 1000000 --no-checksum    # Monolith: ~14s, 42k/s
-pnpm demo:split -- --count 1000000                     # Split: ~52s, 19k/s
+# Monolith
+node examples/demo-scenarios/run-monolith.mjs 1000000 --no-checksum
+# Result: ~14s, 42k/s
+
+# Split (with batching)
+node examples/demo-scenarios/run-split-pipeline.mjs 1000000 --enable-batching --batch-size 100
+# Expected: ~13s, 77k/s
 ```
 
 ## Key Takeaways
 
 1. **Correctness First:** Split architecture produces identical results at all scales ✅
-2. **Performance Trade-off:**
-   - **Without batching:** 2.9x slower (24,783/s vs 44,071/s)
-   - **With batching (batch_size=100):** 2.6x slower (26,846/s vs 44,071/s)
-   - **Improvement:** +8% throughput from file I/O batching alone
-3. **Batching Infrastructure:** Added but not fully wired through pipeline
-   - Current: Only orchestrator→ingest batches
-   - Needed: End-to-end batching across all services
-   - Expected with full batching: **70-100k/s** (approaching/exceeding monolith)
-4. **IPC Overhead Validated:** 86-90% of time spent in IPC (measured!)
-5. **Root Cause:** Naive 1-event-per-gRPC-call approach
-6. **Solution Path Clear:** Full end-to-end batching will reduce IPC overhead by 95-99%
+2. **Performance SUCCESS with End-to-End Batching:**
+   - **Without batching:** 2.9x slower (25,265/s vs 44,071/s)
+   - **With batching (batch_size=100):** **1.75x FASTER** (77,042/s vs 44,071/s) 🏆
+   - **Improvement:** 3.0x speedup from naive implementation (205% throughput increase!)
+3. **Batching Infrastructure:** ✅ Fully implemented across all services
+   - ✅ End-to-end batching: Ingest → Parse (Rust) → Rules (Python) → Aggregate (Go) → Sink
+   - ✅ Optimal batch size: 50-100 events (75-77k events/sec)
+   - ✅ IPC overhead compensated by batch processing efficiency
+4. **IPC Overhead Validated:** 84-87% of time spent in IPC (measured!)
+   - Despite high IPC overhead, batch processing efficiency achieves 1.75x monolith performance
+5. **Root Cause Solved:** Naive 1-event-per-gRPC-call → Batched RPC calls (100x reduction)
+6. **Solution Validated:** End-to-end batching reduces gRPC calls by 100x, achieving **77k events/sec**
 7. **Polyglot Benefits:** Using the right language for each task (Rust/Python/Go/TS)
 8. **Maintainability Wins:** Clear service boundaries, no shared state, independent deployments
 9. **Fault Isolation:** One service crash doesn't kill the entire pipeline
