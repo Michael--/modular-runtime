@@ -1,9 +1,0 @@
-{
-  "name": "@modular-runtime/aggregate-service-go",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "gen": "cd ../../packages/proto && export PATH=$PATH:$HOME/go/bin && pnpm run gen && cd - && cp -r ../../packages/proto/generated/go/* .",
-    "start": "go run ."
-  }
-}

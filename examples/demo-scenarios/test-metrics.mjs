@@ -51,29 +51,29 @@ async function main() {
   
   // Start services with metrics enabled
   const services = [
-    { 
-      cmd: 'node', 
-      args: ['../../apps/ingest-service/dist/ingest-service.js'],
+    {
+      cmd: 'node',
+      args: ['../../apps/demo-domain/ingest-service/dist/ingest-service.js'],
       label: 'ingest'
     },
-    { 
-      cmd: '../../apps/parse-service-rust/target/release/parse-service-rust',
+    {
+      cmd: '../../apps/demo-domain/parse-service-rust/target/release/parse-service-rust',
       args: [],
       label: 'parse'
     },
-    { 
+    {
       cmd: 'python3',
-      args: ['../../apps/rules-service-python/src/rules_service.py'],
+      args: ['../../apps/demo-domain/rules-service-python/src/rules_service.py'],
       label: 'rules'
     },
     {
-      cmd: '../../apps/aggregate-service-go/aggregate-service-go',
+      cmd: '../../apps/demo-domain/aggregate-service-go/aggregate-service-go',
       args: [],
       label: 'aggregate'
     },
     {
       cmd: 'node',
-      args: ['../../apps/sink-service/dist/sink-service.js'],
+      args: ['../../apps/demo-domain/sink-service/dist/sink-service.js'],
       label: 'sink'
     }
   ]
@@ -114,7 +114,7 @@ async function main() {
   const orch = await runCommand(
     'node',
     [
-      '../../apps/pipeline-orchestrator/dist/pipeline-orchestrator.js',
+      '../../apps/demo-domain/pipeline-orchestrator/dist/pipeline-orchestrator.js',
       '--input', './events.ndjson',
       '--output', './test-metrics-output.ndjson',
       '--max-events', String(EVENTS)

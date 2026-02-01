@@ -57,17 +57,17 @@ importers:
         specifier: ^4.0.17
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/aggregate-service:
+  apps/demo-domain/aggregate-service:
     devDependencies:
       '@grpc/grpc-js':
         specifier: ^1.10.9
         version: 1.14.3
       '@modular-runtime/broker':
         specifier: workspace:*
-        version: link:../../packages/broker
+        version: link:../../../packages/broker
       '@modular-runtime/proto':
         specifier: workspace:*
-        version: link:../../packages/proto
+        version: link:../../../packages/proto
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
@@ -84,7 +84,7 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/aggregate-service-go: {}
+  apps/demo-domain/aggregate-service-go: {}
 
   apps/calculator-client:
     devDependencies:
@@ -144,11 +144,11 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4(@types/node@25.1.0)(rollup@4.57.0)(typescript@5.9.3)(vite@7.3.1(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2))
 
-  apps/event-generator:
+  apps/demo-domain/event-generator:
     devDependencies:
       '@modular-runtime/pipeline-common':
         specifier: workspace:*
-        version: link:../../packages/pipeline-common
+        version: link:../../../packages/pipeline-common
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
@@ -165,22 +165,22 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/event-pipeline-monolith: {}
+  apps/demo-domain/event-pipeline-monolith: {}
 
-  apps/ingest-service:
+  apps/demo-domain/ingest-service:
     devDependencies:
       '@grpc/grpc-js':
         specifier: ^1.10.9
         version: 1.14.3
       '@modular-runtime/broker':
         specifier: workspace:*
-        version: link:../../packages/broker
+        version: link:../../../packages/broker
       '@modular-runtime/pipeline-common':
         specifier: workspace:*
-        version: link:../../packages/pipeline-common
+        version: link:../../../packages/pipeline-common
       '@modular-runtime/proto':
         specifier: workspace:*
-        version: link:../../packages/proto
+        version: link:../../../packages/proto
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
@@ -197,17 +197,17 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/parse-service:
+  apps/demo-domain/parse-service:
     devDependencies:
       '@grpc/grpc-js':
         specifier: ^1.10.9
         version: 1.14.3
       '@modular-runtime/broker':
         specifier: workspace:*
-        version: link:../../packages/broker
+        version: link:../../../packages/broker
       '@modular-runtime/proto':
         specifier: workspace:*
-        version: link:../../packages/proto
+        version: link:../../../packages/proto
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
@@ -224,16 +224,16 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/parse-service-rust: {}
+  apps/demo-domain/parse-service-rust: {}
 
-  apps/pipeline-orchestrator:
+  apps/demo-domain/pipeline-orchestrator:
     dependencies:
       '@grpc/grpc-js':
         specifier: ^1.14.3
         version: 1.14.3
       '@modular-runtime/proto':
         specifier: workspace:*
-        version: link:../../packages/proto
+        version: link:../../../packages/proto
     devDependencies:
       '@types/node':
         specifier: ^25.1.0
@@ -251,17 +251,17 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/rules-service:
+  apps/demo-domain/rules-service:
     devDependencies:
       '@grpc/grpc-js':
         specifier: ^1.10.9
         version: 1.14.3
       '@modular-runtime/broker':
         specifier: workspace:*
-        version: link:../../packages/broker
+        version: link:../../../packages/broker
       '@modular-runtime/proto':
         specifier: workspace:*
-        version: link:../../packages/proto
+        version: link:../../../packages/proto
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
@@ -278,22 +278,22 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
-  apps/rules-service-python: {}
+  apps/demo-domain/rules-service-python: {}
 
-  apps/sink-service:
+  apps/demo-domain/sink-service:
     devDependencies:
       '@grpc/grpc-js':
         specifier: ^1.10.9
         version: 1.14.3
       '@modular-runtime/broker':
         specifier: workspace:*
-        version: link:../../packages/broker
+        version: link:../../../packages/broker
       '@modular-runtime/pipeline-common':
         specifier: workspace:*
-        version: link:../../packages/pipeline-common
+        version: link:../../../packages/pipeline-common
       '@modular-runtime/proto':
         specifier: workspace:*
-        version: link:../../packages/proto
+        version: link:../../../packages/proto
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
