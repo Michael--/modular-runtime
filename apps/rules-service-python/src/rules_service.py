@@ -33,8 +33,11 @@ class ServiceMetrics:
         self.ipc_recv_time_ms += duration_ms
 
     def record_processing(self, duration_ms: float) -> None:
+        self.record_processing_count(duration_ms, 1)
+
+    def record_processing_count(self, duration_ms: float, count: int) -> None:
         self.processing_time_ms += duration_ms
-        self.events_processed += 1
+        self.events_processed += count
 
     def record_send(self, duration_ms: float) -> None:
         self.ipc_send_time_ms += duration_ms
@@ -78,6 +81,35 @@ class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
 
             send_start = time.perf_counter()
             response = pipeline_pb2.ApplyRulesResponse(event=enriched)
+            self.metrics.record_send((time.perf_counter() - send_start) * 1000)
+            yield response
+
+        self.metrics.print_summary()
+
+    def ApplyRulesBatch(
+        self, request_iterator: Iterable[pipeline_pb2.ApplyRulesBatchRequest], context: grpc.ServicerContext
+    ) -> Iterable[pipeline_pb2.ApplyRulesBatchResponse]:
+        for request in request_iterator:
+            recv_start = time.perf_counter()
+            if not request.events:
+                continue
+            self.metrics.record_recv((time.perf_counter() - recv_start) * 1000)
+
+            process_start = time.perf_counter()
+            enriched_events = []
+            for event in request.events:
+                enriched = apply_rules(event)
+                if enriched is not None:
+                    enriched_events.append(enriched)
+            self.metrics.record_processing_count(
+                (time.perf_counter() - process_start) * 1000, len(request.events)
+            )
+
+            if not enriched_events:
+                continue
+
+            send_start = time.perf_counter()
+            response = pipeline_pb2.ApplyRulesBatchResponse(events=enriched_events)
             self.metrics.record_send((time.perf_counter() - send_start) * 1000)
             yield response
 

@@ -5,7 +5,14 @@ use chrono::FixedOffset;
 use proto::broker::v1::ServiceInfo;
 use proto::broker::v1::broker_service_client::BrokerServiceClient;
 use proto::broker::v1::RegisterServiceRequest;
-use proto::pipeline::v1::{Event, ParsedEvent, ParseEventsRequest, ParseEventsResponse};
+use proto::pipeline::v1::{
+  Event,
+  ParseEventsBatchRequest,
+  ParseEventsBatchResponse,
+  ParsedEvent,
+  ParseEventsRequest,
+  ParseEventsResponse,
+};
 use proto::pipeline::v1::parse_service_server::{ParseService, ParseServiceServer, SERVICE_NAME as PARSE_SERVICE_NAME};
 use serde_json::Value;
 use std::error::Error;
@@ -48,8 +55,12 @@ impl ServiceMetrics {
   }
 
   fn record_processing(&self, duration_ms: f64) {
+    self.record_processing_count(duration_ms, 1);
+  }
+
+  fn record_processing_count(&self, duration_ms: f64, count: u64) {
     *self.processing_time_ms.lock().unwrap() += duration_ms;
-    *self.events_processed.lock().unwrap() += 1;
+    *self.events_processed.lock().unwrap() += count;
   }
 
   fn record_send(&self, duration_ms: f64) {
@@ -78,6 +89,7 @@ impl ServiceMetrics {
 #[tonic::async_trait]
 impl ParseService for ParseServiceImpl {
   type ParseEventsStream = ReceiverStream<Result<ParseEventsResponse, Status>>;
+  type ParseEventsBatchStream = ReceiverStream<Result<ParseEventsBatchResponse, Status>>;
 
   async fn parse_events(
     &self,
@@ -111,6 +123,63 @@ impl ParseService for ParseServiceImpl {
                 if send_result.is_err() {
                   break;
                 }
+              }
+            }
+          }
+          Ok(None) => {
+            metrics.print_summary("parse-service");
+            break;
+          }
+          Err(error) => {
+            let _ = tx.send(Err(Status::internal(error.to_string()))).await;
+            break;
+          }
+        }
+      }
+    });
+
+    Ok(Response::new(ReceiverStream::new(rx)))
+  }
+
+  async fn parse_events_batch(
+    &self,
+    request: Request<tonic::Streaming<ParseEventsBatchRequest>>,
+  ) -> Result<Response<Self::ParseEventsBatchStream>, Status> {
+    let mut input = request.into_inner();
+    let (tx, rx) = mpsc::channel(128);
+    let metrics = ServiceMetrics::default();
+
+    tokio::spawn(async move {
+      loop {
+        let recv_start = Instant::now();
+        match input.message().await {
+          Ok(Some(message)) => {
+            metrics.record_recv(recv_start.elapsed().as_secs_f64() * 1000.0);
+
+            if message.events.is_empty() {
+              continue;
+            }
+
+            let process_start = Instant::now();
+            let parsed: Vec<ParsedEvent> = message
+              .events
+              .iter()
+              .filter_map(parse_event)
+              .collect();
+            metrics.record_processing_count(
+              process_start.elapsed().as_secs_f64() * 1000.0,
+              message.events.len() as u64,
+            );
+
+            if !parsed.is_empty() {
+              let send_start = Instant::now();
+              let send_result = tx
+                .send(Ok(ParseEventsBatchResponse { events: parsed }))
+                .await;
+              metrics.record_send(send_start.elapsed().as_secs_f64() * 1000.0);
+
+              if send_result.is_err() {
+                break;
               }
             }
           }
