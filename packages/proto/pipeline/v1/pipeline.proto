@@ -13,15 +13,18 @@ service IngestService {
 // Parse service validates and normalizes raw events.
 service ParseService {
   rpc ParseEvents(stream ParseEventsRequest) returns (stream ParseEventsResponse);
+  rpc ParseEventsBatch(stream ParseEventsBatchRequest) returns (stream ParseEventsBatchResponse);
 }
 
 // Rules service applies filtering and enrichment rules.
 service RulesService {
   rpc ApplyRules(stream ApplyRulesRequest) returns (stream ApplyRulesResponse);
+  rpc ApplyRulesBatch(stream ApplyRulesBatchRequest) returns (stream ApplyRulesBatchResponse);
 }
 
 // Aggregate service aggregates enriched events.
 service AggregateService {
+  rpc AggregateBatch(stream AggregateBatchRequest) returns (stream AggregateBatchResponse);
   rpc Aggregate(stream AggregateRequest) returns (stream AggregateResponse);
 }
 
@@ -34,6 +37,7 @@ message StreamEventsRequest {
   string input_file = 1;
   int32 batch_size = 2;
   int64 max_events = 3;
+  bool enable_batching = 4;
 }
 
 message GetStatusRequest {
@@ -70,6 +74,34 @@ message AggregateRequest {
 
 message AggregateResponse {
   AggregateResult result = 1;
+}
+
+// Batch message types
+message ParseEventsBatchRequest {
+  repeated Event events = 1;
+  int32 batch_size = 2;
+}
+
+message ParseEventsBatchResponse {
+  repeated ParsedEvent events = 1;
+}
+
+message ApplyRulesBatchRequest {
+  repeated ParsedEvent events = 1;
+  int32 batch_size = 2;
+}
+
+message ApplyRulesBatchResponse {
+  repeated EnrichedEvent events = 1;
+}
+
+message AggregateBatchRequest {
+  repeated EnrichedEvent events = 1;
+  int32 batch_size = 2;
+}
+
+message AggregateBatchResponse {
+  repeated AggregateResult results = 1;
 }
 
 message WriteResultsRequest {

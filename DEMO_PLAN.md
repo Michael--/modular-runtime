@@ -684,7 +684,222 @@ examples/
 
 ---
 
-## Sprint 4: Compute-Heavy Workloads (Optional Extension)
+## Sprint 4: Batching Optimization
+
+**Status:** In Progress  
+**Goal:** Reduce IPC overhead from 85-94% to <30% through batching
+
+### Motivation
+
+Current metrics show high IPC overhead:
+
+- **Ingest:** 89% IPC Send (one-at-a-time streaming)
+- **Parse:** 94% IPC Recv (waiting for individual events)
+- **Aggregate:** 99% IPC Recv (waiting)
+
+**Root cause:** Streaming one event at a time → 100k round trips for 100k events
+
+**Solution:** Batch events to reduce round trips → 1k batches of 100 events = 1k round trips
+
+### Expected Impact
+
+With batch_size=100:
+
+- **Round trips:** 100,000 → 1,000 (100x reduction)
+- **IPC overhead:** 85-94% → 25-30% (3x reduction)
+- **Throughput:** 30k events/sec → 70-100k events/sec (2-3x improvement)
+- **Latency:** Bounded by batch timeout (e.g., 10ms max)
+
+### Implementation Plan
+
+#### 4.1 Proto Changes
+
+```protobuf
+// packages/proto/pipeline/v1/pipeline.proto
+
+// Add batch wrapper
+message EventBatch {
+  repeated RawData events = 1;
+  int32 batch_size = 2;
+}
+
+message ParsedEventBatch {
+  repeated ParsedEvent events = 1;
+}
+
+message EnrichedEventBatch {
+  repeated EnrichedEvent events = 1;
+}
+
+// Update services to use batches
+service Parse {
+  rpc ParseEvents(stream EventBatch) returns (stream ParsedEventBatch);
+}
+
+service Rules {
+  rpc ApplyRules(stream ParsedEventBatch) returns (stream EnrichedEventBatch);
+}
+
+service Aggregate {
+  rpc Aggregate(stream EnrichedEventBatch) returns (stream AggregateResult);
+}
+```
+
+#### 4.2 Ingest Service (TypeScript)
+
+```typescript
+// apps/ingest-service/src/ingest-service.ts
+
+async function* batchEvents(
+  events: AsyncIterable<RawData>,
+  batchSize: number,
+  maxWaitMs: number = 10
+): AsyncGenerator<EventBatch> {
+  let batch: RawData[] = []
+  let batchStart = Date.now()
+
+  for await (const event of events) {
+    batch.push(event)
+
+    // Flush if batch full or timeout
+    const shouldFlush = batch.length >= batchSize || Date.now() - batchStart > maxWaitMs
+
+    if (shouldFlush) {
+      yield { events: batch, batch_size: batch.length }
+      batch = []
+      batchStart = Date.now()
+    }
+  }
+
+  // Flush remaining
+  if (batch.length > 0) {
+    yield { events: batch, batch_size: batch.length }
+  }
+}
+
+// In StreamEvents RPC
+for await (const batch of batchEvents(readEvents(file), 100)) {
+  yield batch
+}
+```
+
+#### 4.3 Parse Service (Rust)
+
+```rust
+// apps/parse-service-rust/src/main.rs
+
+async fn parse_events(
+    &self,
+    request: Request<tonic::Streaming<EventBatch>>,
+) -> Result<Response<Self::ParseEventsStream>, Status> {
+    let mut stream = request.into_inner();
+
+    let output = async_stream::stream! {
+        while let Some(batch) = stream.next().await {
+            let batch = batch?;
+            let process_start = Instant::now();
+
+            // Process all events in batch
+            let parsed: Vec<ParsedEvent> = batch.events
+                .par_iter() // Parallel processing with rayon
+                .filter_map(|raw| parse_event(&raw.event))
+                .collect();
+
+            metrics.record_processing(process_start.elapsed());
+
+            yield Ok(ParsedEventBatch { events: parsed });
+        }
+    };
+
+    Ok(Response::new(Box::pin(output)))
+}
+```
+
+#### 4.4 Rules Service (Python)
+
+```python
+# apps/rules-service-python/src/rules_service.py
+
+def ApplyRules(self, request_iterator, context):
+    for batch in request_iterator:
+        process_start = time.perf_counter()
+
+        # Process batch
+        enriched = []
+        for event in batch.events:
+            if event.type == "view":
+                continue  # Filter
+            enriched.append(enrich_event(event))
+
+        self.metrics.record_processing((time.perf_counter() - process_start) * 1000)
+
+        yield EnrichedEventBatch(events=enriched)
+```
+
+#### 4.5 Aggregate Service (Go)
+
+```go
+// apps/aggregate-service-go/main.go
+
+func (s *aggregateServer) Aggregate(stream pb.Aggregate_AggregateServer) error {
+    for {
+        batch, err := stream.Recv()
+        if err == io.EOF {
+            return s.sendResults(stream)
+        }
+        if err != nil {
+            return err
+        }
+
+        processStart := time.Now()
+
+        // Process batch
+        for _, event := range batch.Events {
+            s.aggregateBatch[event.Type].Count++
+            s.aggregateBatch[event.Type].Sum += event.Value
+        }
+
+        metrics.recordProcessing(time.Since(processStart).Seconds() * 1000)
+    }
+}
+```
+
+### Testing Strategy
+
+```bash
+# Test with different batch sizes
+pnpm test:pipeline --batch-size=1    # Baseline (current)
+pnpm test:pipeline --batch-size=10   # Small batches
+pnpm test:pipeline --batch-size=100  # Optimal
+pnpm test:pipeline --batch-size=1000 # Large batches
+
+# Measure throughput
+node run-split-pipeline.mjs 100000 --batch-size=100
+# Expected: 70-100k events/sec (vs 30k baseline)
+```
+
+### Success Metrics
+
+- ✅ IPC overhead reduces from 85-94% to 25-30%
+- ✅ Throughput increases from 30k to 70-100k events/sec
+- ✅ Latency stays bounded (<50ms p99)
+- ✅ All services handle batches correctly
+- ✅ Metrics still accurate
+
+### Rollout Plan
+
+1. Implement proto changes + regenerate
+2. Update services one-by-one (TS → Rust → Python → Go)
+3. Add batch_size CLI flag (default=100)
+4. Test with 100k events
+5. Compare metrics before/after
+6. Document results in RESULTS.md
+
+**Estimate:** 8-12 hours total
+
+---
+
+## Sprint 5: Compute-Heavy Workloads (Optional Extension)
 
 **Status:** Planning (not yet started)  
 **Goal:** Add CPU-intensive workload mode to shift focus from IPC to processing
