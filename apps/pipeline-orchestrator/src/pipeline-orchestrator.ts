@@ -22,6 +22,8 @@ interface PipelineConfig {
   inputFile: string
   outputFile: string
   maxEvents: number
+  enableBatching: boolean
+  batchSize: number
   ingestHost: string
   ingestPort: number
   parseHost: string
@@ -38,6 +40,8 @@ const DEFAULT_CONFIG: PipelineConfig = {
   inputFile: 'examples/demo-scenarios/events.ndjson',
   outputFile: 'examples/demo-scenarios/aggregate-results-split.ndjson',
   maxEvents: 0, // 0 means all
+  enableBatching: false,
+  batchSize: 100,
   ingestHost: '127.0.0.1',
   ingestPort: 6001,
   parseHost: '127.0.0.1',
@@ -56,6 +60,8 @@ Options:
   --input <file>          Input NDJSON file (default: ${DEFAULT_CONFIG.inputFile})
   --output <file>         Output NDJSON file (default: ${DEFAULT_CONFIG.outputFile})
   --max-events <number>   Max events to process (default: all)
+  --enable-batching       Enable batching mode
+  --batch-size <number>   Batch size (default: ${DEFAULT_CONFIG.batchSize})
   -h, --help              Show this help message
 `
 
@@ -95,6 +101,17 @@ const parseArgs = (argv: string[]): PipelineConfig => {
       i += 1
       continue
     }
+
+    if (arg === '--enable-batching') {
+      config.enableBatching = true
+      continue
+    }
+
+    if (arg === '--batch-size') {
+      config.batchSize = Number(getValue(i + 1))
+      i += 1
+      continue
+    }
   }
 
   return config
@@ -112,6 +129,9 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
   console.log('=== Pipeline Orchestrator ===')
   console.log(`Input: ${config.inputFile}`)
   console.log(`Output: ${config.outputFile}`)
+  console.log(
+    `Batching: ${config.enableBatching ? `enabled (size: ${config.batchSize})` : 'disabled'}`
+  )
   console.log()
 
   const ingestClient = createClient(IngestServiceClient, config.ingestHost, config.ingestPort)
@@ -126,8 +146,9 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
 
   const request: StreamEventsRequest = {
     inputFile: config.inputFile,
-    batchSize: 1000,
+    batchSize: config.batchSize,
     maxEvents: config.maxEvents.toString(),
+    enableBatching: config.enableBatching,
   }
 
   let ingestCount = 0

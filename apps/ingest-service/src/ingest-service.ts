@@ -140,6 +140,8 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
 
       const inputFile = request.inputFile.length > 0 ? request.inputFile : config.defaultInputFile
       const maxEvents = parseMaxEvents(request.maxEvents)
+      const enableBatching = request.enableBatching ?? false
+      const batchSize = request.batchSize > 0 ? request.batchSize : 100
       let cancelled = false
 
       call.on('cancelled', () => {
@@ -151,6 +153,8 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
           const input = createReadStream(inputFile)
           const reader = createInterface({ input })
           let sequence = 0
+          let batch: StreamEventsResponse[] = []
+          let batchStart = Date.now()
 
           for await (const line of reader) {
             if (cancelled) {
@@ -169,9 +173,36 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
               },
             }))
 
-            await metrics.recordSend(() => writeWithBackpressure(call, response))
+            if (enableBatching) {
+              // Collect into batch
+              batch.push(response)
+
+              const shouldFlush = batch.length >= batchSize || Date.now() - batchStart > 10
+
+              if (shouldFlush) {
+                // Send all events in batch
+                for (const msg of batch) {
+                  await metrics.recordSend(() => writeWithBackpressure(call, msg))
+                  streamedEvents += 1
+                }
+                batch = []
+                batchStart = Date.now()
+              }
+            } else {
+              // Send immediately (original behavior)
+              await metrics.recordSend(() => writeWithBackpressure(call, response))
+              streamedEvents += 1
+            }
+
             sequence += 1
-            streamedEvents += 1
+          }
+
+          // Flush remaining batch
+          if (enableBatching && batch.length > 0) {
+            for (const msg of batch) {
+              await metrics.recordSend(() => writeWithBackpressure(call, msg))
+              streamedEvents += 1
+            }
           }
 
           call.end()
