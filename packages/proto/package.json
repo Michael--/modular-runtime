@@ -5,7 +5,7 @@
   "scripts": {
     "clean": "rimraf dist",
     "lint": "buf lint",
-    "gen": "buf generate",
+    "gen": "PATH=$PATH:$HOME/go/bin buf generate",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "breaking": "buf breaking --against '.git#branch=main'"
