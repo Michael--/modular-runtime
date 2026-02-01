@@ -684,6 +684,295 @@ examples/
 
 ---
 
+## Sprint 4: Compute-Heavy Workloads (Optional Extension)
+
+**Status:** Planning (not yet started)  
+**Goal:** Add CPU-intensive workload mode to shift focus from IPC to processing
+
+### Current State Analysis
+
+Event pipeline is **I/O-bound** (real measurements from 1k events):
+
+- **Ingest (TS):** 89% IPC Send, 10% processing (0.2μs/event)
+- **Parse (Rust):** 94% IPC Recv (waiting!), 5% processing (3.5μs/event)
+- **Rules (Python):** 70% processing, 30% IPC (3.3μs/event) ← Best ratio!
+- **Aggregate (Go):** 99% IPC Recv (waiting!), 0.1% processing (0.1μs/event)
+- **Sink (TS):** 83% IPC Send, 11% processing
+
+**Problem:** Language performance comparison is limited when most time is spent waiting/transferring.
+
+**Solution:** Add compute-heavy workload mode where processing dominates over IPC.
+
+### Design Principles
+
+1. **Non-breaking:** Existing event pipeline remains default
+2. **Opt-in:** Activated via CLI flags
+3. **Same infrastructure:** Reuses metrics, orchestrator, services
+4. **Dual-path:** Services handle both events and work-items
+
+### Workload Design
+
+**Example WorkItem payload:**
+
+```json
+{
+  "type": "work-item",
+  "id": "w-000123",
+  "payload": {
+    "vectors": [
+      [0.12, 0.44, 0.93, 0.21],
+      [0.51, 0.09, 0.33, 0.77]
+    ],
+    "matrix": [
+      [1.1, 0.2],
+      [0.4, 0.9]
+    ],
+    "text": "Lorem ipsum dolor sit amet...",
+    "iterations": 500
+  }
+}
+```
+
+**Per-service compute tasks:**
+
+- **Parse (Rust):** Vector validation, matrix transpose, preprocessing
+- **Rules (Python):** Feature engineering (normalization, thresholding, filtering)
+- **Aggregate (Go):** Numeric aggregation (dot products, matrix multiply, reduce/map)
+- **Sink (TS):** Result checksumming, JSON formatting
+
+### Implementation Tasks
+
+#### 4.1 Proto Extensions
+
+Add to `packages/proto/pipeline/v1/pipeline.proto`:
+
+```protobuf
+message StreamEventsRequest {
+  string input_file = 1;
+  int32 batch_size = 2;
+  string max_events = 3;
+
+  // NEW: Workload mode
+  WorkloadMode mode = 4;
+  WorkloadConfig config = 5;
+}
+
+enum WorkloadMode {
+  EVENTS = 0;       // Default: existing event pipeline
+  WORK_ITEMS = 1;   // Compute-heavy workloads
+  MIXED = 2;        // Mix of both
+}
+
+message WorkloadConfig {
+  float work_ratio = 1;        // 0.0-1.0: ratio of work-items vs events
+  PayloadSize payload_size = 2;
+  int32 compute_iterations = 3;
+}
+
+enum PayloadSize {
+  SMALL = 0;   // 1KB
+  MEDIUM = 1;  // 10KB
+  LARGE = 2;   // 100KB
+}
+
+message WorkItem {
+  string id = 1;
+  repeated Vector vectors = 2;
+  Matrix matrix = 3;
+  string text = 4;
+  int32 iterations = 5;
+}
+
+message Vector {
+  repeated double values = 1;
+}
+
+message Matrix {
+  repeated Vector rows = 1;
+}
+
+// Extend RawData
+message RawData {
+  oneof payload {
+    Event event = 1;          // Existing
+    WorkItem work_item = 2;   // NEW
+  }
+}
+```
+
+#### 4.2 Service Updates (Dual-Path Pattern)
+
+**TypeScript (Ingest):** Add work item generator
+
+```typescript
+function generateWorkItem(id: string, config: WorkloadConfig): WorkItem {
+  const size = config.payload_size === 'LARGE' ? 1000 : config.payload_size === 'MEDIUM' ? 100 : 10
+
+  return {
+    id,
+    vectors: Array.from({ length: 2 }, () => Array.from({ length: size }, () => Math.random())),
+    matrix: {
+      rows: Array.from({ length: size }, () => Array.from({ length: size }, () => Math.random())),
+    },
+    text: 'Lorem ipsum '.repeat(config.payload_size === 'LARGE' ? 1000 : 10),
+    iterations: config.compute_iterations || 500,
+  }
+}
+```
+
+**Rust (Parse):** Add vector/matrix operations
+
+```rust
+fn process_work_item(item: &WorkItem) -> ProcessedWorkItem {
+  let process_start = Instant::now();
+
+  // Vector normalization
+  let normalized: Vec<Vec<f64>> = item.vectors.iter()
+    .map(|v| normalize_vector(&v.values))
+    .collect();
+
+  // Matrix transpose
+  let transposed = transpose_matrix(&item.matrix);
+
+  // CPU work
+  let mut result = 0.0;
+  for _ in 0..item.iterations {
+    result += compute_hash(&normalized);
+  }
+
+  metrics.record_processing(process_start.elapsed().as_secs_f64() * 1000.0);
+
+  ProcessedWorkItem { id: item.id.clone(), vectors: normalized, checksum: result }
+}
+```
+
+**Python (Rules):** Add numpy/sklearn operations
+
+```python
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+
+def process_work_item(item: WorkItem) -> EnrichedWorkItem:
+    start = time.perf_counter()
+
+    # Feature engineering
+    vectors = np.array([v.values for v in item.vectors])
+    scaler = StandardScaler()
+    normalized = scaler.fit_transform(vectors)
+
+    # Matrix eigenvalues
+    matrix = np.array([[c for c in r.values] for r in item.matrix.rows])
+    eigenvalues = np.linalg.eigvals(matrix)
+
+    # CPU iterations
+    result = sum(np.sum(eigenvalues) for _ in range(item.iterations))
+
+    self.metrics.record_processing((time.perf_counter() - start) * 1000)
+
+    return EnrichedWorkItem(id=item.id, eigenvalues=eigenvalues.tolist(), score=float(result))
+```
+
+**Go (Aggregate):** Add numeric operations
+
+```go
+func processWorkItem(item *WorkItem, metrics *ServiceMetrics) *AggregateResult {
+  start := time.Now()
+
+  // Dot products
+  var dotProducts []float64
+  for i := 0; i < len(item.Vectors)-1; i++ {
+    dp := dotProduct(item.Vectors[i].Values, item.Vectors[i+1].Values)
+    dotProducts = append(dotProducts, dp)
+  }
+
+  // Matrix sum
+  var sum float64
+  for _, row := range item.Matrix.Rows {
+    for _, val := range row.Values {
+      sum += val
+    }
+  }
+
+  // CPU work
+  result := 0.0
+  for i := 0; i < int(item.Iterations); i++ {
+    result += sum * float64(i)
+  }
+
+  metrics.recordProcessing(time.Since(start).Seconds() * 1000)
+
+  return &AggregateResult{Key: item.Id, Sum: int64(result), Avg: result}
+}
+```
+
+#### 4.3 CLI Extensions
+
+```bash
+# Work items only
+node run-split-pipeline.mjs 10000 --workload=work-items --payload-size=medium
+
+# Mixed mode: 30% work items, 70% events
+node run-split-pipeline.mjs 100000 --workload=mixed --work-ratio=0.3
+
+# CPU-intensive
+node run-split-pipeline.mjs 1000 --workload=work-items --iterations=10000
+```
+
+#### 4.4 Expected Metrics
+
+Separate output for events vs work-items:
+
+```
+=== Pipeline Metrics (Events) ===
+Processed: 70,000 events
+IPC overhead: 85% (current baseline)
+
+=== Pipeline Metrics (Work Items) ===
+Processed: 30,000 work-items
+IPC overhead: 25% ← Much lower!
+Processing time: 70% ← Language matters here!
+
+=== Language Performance ===
+Rust Parse:     3.2ms/item (vector ops)
+Python Rules:   8.5ms/item (numpy/sklearn)
+Go Aggregate:   1.1ms/item (concurrency)
+TS Ingest/Sink: 0.5ms/item (I/O bound)
+```
+
+### Decision Point
+
+**Do we implement this?**
+
+**Arguments FOR:**
+
+- Makes language comparison more meaningful
+- Shows polyglot advantages in real compute scenarios
+- Demonstrates mixed workload capability
+
+**Arguments AGAINST:**
+
+- Current metrics already show Python is fast (70% processing)
+- Adds complexity to demo
+- Event pipeline is realistic use case
+- Could be separate demo
+
+**Recommendation:** Defer to Sprint 5 or create as extension demo.
+
+### Implementation Estimate
+
+- Proto changes: 2h
+- Ingest service: 2h
+- Parse (Rust): 4h
+- Rules (Python + numpy): 4h
+- Aggregate (Go): 3h
+- Sink: 1h
+- Generator: 2h
+- Testing: 4h
+
+**Total:** ~22 hours
+
+---
+
 ## Commit Message
 
 ```

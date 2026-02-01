@@ -349,6 +349,8 @@ ingestStream.on('data', (response) => {
 
 **The message:** "IPC overhead is manageable with standard optimization techniques - we chose simplicity to establish a baseline."
 
+---
+
 ## Implementation Status
 
 **✅ Metrics instrumentation added to all services (Sprint 3.5)**
