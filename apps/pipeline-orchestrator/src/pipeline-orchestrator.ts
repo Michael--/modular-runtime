@@ -16,14 +16,14 @@ import {
   AggregateResponse,
   WriteResultsRequest,
   WriteResultsResponse,
-  ParseEventsBatchRequest,
   ParseEventsBatchResponse,
-  ApplyRulesBatchRequest,
   ApplyRulesBatchResponse,
-  AggregateBatchRequest,
   AggregateBatchResponse,
   WorkloadMode,
   PayloadSize,
+  Event,
+  ParsedEvent,
+  EnrichedEvent,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline.js'
 
 interface PipelineConfig {
@@ -224,8 +224,11 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
   let firstEventTime: number | null = null
 
   const ingestStream = ingestClient.streamEvents(request)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let parseStream: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rulesStream: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let aggregateStream: any
 
   if (config.enableBatching) {
@@ -270,7 +273,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
 
   if (config.enableBatching) {
     // Batching mode: collect events into batches
-    let eventBatch: (typeof response.event)[] = []
+    let eventBatch: Event[] = []
 
     const flushBatch = () => {
       if (eventBatch.length === 0) return
@@ -313,7 +316,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     })
 
     // Parse receives batches
-    let parseBatch: (typeof response.event)[] = []
+    let parseBatch: ParsedEvent[] = []
 
     const flushParseBatch = () => {
       if (parseBatch.length === 0) return
@@ -349,7 +352,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     })
 
     // Rules receives batches
-    let rulesBatch: (typeof response.event)[] = []
+    let rulesBatch: EnrichedEvent[] = []
 
     const flushRulesBatch = () => {
       if (rulesBatch.length === 0) return

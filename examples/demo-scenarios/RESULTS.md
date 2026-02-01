@@ -174,7 +174,7 @@ When **processing time >> IPC time** through CPU-intensive operations:
 **Why batching doesn't help CPU-bound workloads:**
 
 - **I/O-bound:** 85% time in IPC → batching reduces IPC 100x → **3x speedup** ✅
-- **CPU-bound:** 92% time in processing → batching only helps 8guage for its task
+- **CPU-bound:** 92% time in processing → batching only helps 8 gauge for its task
 - ✅ **Batching irrelevant:** CPU-bound means processing time dominates, not communication
 
 **Why batching doesn't help CPU-bound workloads:**
@@ -204,7 +204,7 @@ When **processing time >> IPC time** through CPU-intensive operations:
 
 **Running the CPU-bound demos:**
 
-```tandard scale tests
+```standard scale tests
 pnpm demo:workload:10000      # 10k items: 0.94s, 10.7k/s, 87% processing ⭐
 pnpm demo:workload:50000      # 50k items: 4.21s, 11.9k/s, 91% processing
 pnpm demo:workload:100000     # 100k items: 9.66s, 10.4k/s, 92% processing
