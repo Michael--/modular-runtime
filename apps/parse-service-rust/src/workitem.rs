@@ -30,11 +30,7 @@ pub struct ProcessedWorkItem {
 /// Processes a WorkItem: vector normalization, matrix transpose, CPU work
 pub fn process_work_item(item: &WorkItem) -> ProcessedWorkItem {
     // Vector normalization
-    let normalized_vectors: Vec<Vector> = item
-        .vectors
-        .iter()
-        .map(normalize_vector)
-        .collect();
+    let normalized_vectors: Vec<Vector> = item.vectors.iter().map(normalize_vector).collect();
 
     // Matrix transpose
     let transposed_matrix = transpose_matrix(&item.matrix);

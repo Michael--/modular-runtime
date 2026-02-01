@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -105,6 +106,25 @@ func (s *aggregateServer) Aggregate(stream pipelinepb.AggregateService_Aggregate
 			continue
 		}
 
+		// Check if this is a WorkItem
+		if event.Type == "work-item" {
+			if workResult, err := processEnrichedWorkItem(event.User); err == nil {
+				resultJSON, _ := json.Marshal(workResult)
+				key := "work-item-results"
+				entry := stats[key]
+				if entry == nil {
+					entry = &aggregateStats{}
+					stats[key] = entry
+				}
+				entry.count += 1
+				entry.sum += int64(workResult.FinalScore)
+				log.Printf("Processed WorkItem: %s", string(resultJSON))
+			}
+			metrics.recordProcessing(float64(time.Since(processStart).Microseconds()) / 1000.0)
+			continue
+		}
+
+		// Normal event processing
 		key := event.Type
 		entry := stats[key]
 		if entry == nil {
@@ -170,6 +190,22 @@ func (s *aggregateServer) AggregateBatch(stream pipelinepb.AggregateService_Aggr
 				continue
 			}
 
+			// Check if this is a WorkItem
+			if event.Type == "work-item" {
+				if workResult, err := processEnrichedWorkItem(event.User); err == nil {
+					key := "work-item-results"
+					entry := stats[key]
+					if entry == nil {
+						entry = &aggregateStats{}
+						stats[key] = entry
+					}
+					entry.count += 1
+					entry.sum += int64(workResult.FinalScore)
+				}
+				continue
+			}
+
+			// Normal event processing
 			key := event.Type
 			entry := stats[key]
 			if entry == nil {

@@ -11,6 +11,7 @@ import {
   RulesServiceService,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline'
 import { applyRules } from './rules'
+import { processWorkItem } from './workitem-processor'
 
 interface RulesConfig {
   host: string
@@ -100,6 +101,28 @@ const startRulesServer = async (config: RulesConfig): Promise<grpc.Server> => {
         if (!request.event) {
           return
         }
+
+        // Handle WorkItems
+        if (request.event.type === 'work-item') {
+          try {
+            const processedItem = JSON.parse(request.event.user)
+            const enrichedItem = processWorkItem(processedItem)
+            const enriched = {
+              event: request.event,
+              metadata: { workload: 'compute-heavy' },
+              passedRules: true,
+            }
+            enriched.event.user = JSON.stringify(enrichedItem)
+            const response: ApplyRulesResponse = { event: enriched }
+            call.write(response)
+            return
+          } catch (error) {
+            console.warn('Failed to process WorkItem:', error)
+            return
+          }
+        }
+
+        // Normal event processing
         const enriched = applyRules(request.event)
         if (!enriched) {
           return
