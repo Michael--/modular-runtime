@@ -16,6 +16,12 @@ import {
   AggregateResponse,
   WriteResultsRequest,
   WriteResultsResponse,
+  ParseEventsBatchRequest,
+  ParseEventsBatchResponse,
+  ApplyRulesBatchRequest,
+  ApplyRulesBatchResponse,
+  AggregateBatchRequest,
+  AggregateBatchResponse,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline.js'
 
 interface PipelineConfig {
@@ -162,9 +168,20 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
   let firstEventTime: number | null = null
 
   const ingestStream = ingestClient.streamEvents(request)
-  const parseStream = parseClient.parseEvents()
-  const rulesStream = rulesClient.applyRules()
-  const aggregateStream = aggregateClient.aggregate()
+  let parseStream: any
+  let rulesStream: any
+  let aggregateStream: any
+
+  if (config.enableBatching) {
+    parseStream = parseClient.parseEventsBatch()
+    rulesStream = rulesClient.applyRulesBatch()
+    aggregateStream = aggregateClient.aggregateBatch()
+  } else {
+    parseStream = parseClient.parseEvents()
+    rulesStream = rulesClient.applyRules()
+    aggregateStream = aggregateClient.aggregate()
+  }
+
   const sinkStream = sinkClient.writeResults(
     (err: Error | null, response: WriteResultsResponse | undefined) => {
       const endTime = Date.now()
@@ -195,76 +212,214 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     }
   )
 
-  // Wire up the pipeline
-  ingestStream.on('data', (response: StreamEventsResponse) => {
-    if (firstEventTime === null) {
-      firstEventTime = Date.now()
+  if (config.enableBatching) {
+    // Batching mode: collect events into batches
+    let eventBatch: (typeof response.event)[] = []
+
+    const flushBatch = () => {
+      if (eventBatch.length === 0) return
+
+      const batchRequest = {
+        events: eventBatch,
+        batchSize: eventBatch.length,
+      }
+      parseStream.write(batchRequest)
+      eventBatch = []
     }
-    ingestCount += 1
-    if (ingestCount % 10000 === 0) {
-      process.stdout.write(`\rIngested: ${ingestCount}`)
+
+    ingestStream.on('data', (response: StreamEventsResponse) => {
+      if (firstEventTime === null) {
+        firstEventTime = Date.now()
+      }
+      ingestCount += 1
+      if (ingestCount % 10000 === 0) {
+        process.stdout.write(`\rIngested: ${ingestCount}`)
+      }
+
+      if (response.event) {
+        eventBatch.push(response.event)
+      }
+
+      if (eventBatch.length >= config.batchSize) {
+        flushBatch()
+      }
+    })
+
+    ingestStream.on('end', () => {
+      flushBatch() // Flush any remaining events
+      console.log(`\n✓ Ingest complete: ${ingestCount} events`)
+      parseStream.end()
+    })
+
+    ingestStream.on('error', (err: Error) => {
+      console.error('Ingest error:', err)
+      process.exit(1)
+    })
+
+    // Parse receives batches
+    let parseBatch: (typeof response.event)[] = []
+
+    const flushParseBatch = () => {
+      if (parseBatch.length === 0) return
+
+      const batchRequest = {
+        events: parseBatch,
+        batchSize: parseBatch.length,
+      }
+      rulesStream.write(batchRequest)
+      parseBatch = []
     }
-    const parseRequest: ParseEventsRequest = { event: response.event }
-    parseStream.write(parseRequest)
-  })
 
-  ingestStream.on('end', () => {
-    console.log(`\n✓ Ingest complete: ${ingestCount} events`)
-    parseStream.end()
-  })
+    parseStream.on('data', (response: ParseEventsBatchResponse) => {
+      if (response.events) {
+        parseCount += response.events.length
+        parseBatch.push(...response.events)
 
-  ingestStream.on('error', (err: Error) => {
-    console.error('Ingest error:', err)
-    process.exit(1)
-  })
+        if (parseBatch.length >= config.batchSize) {
+          flushParseBatch()
+        }
+      }
+    })
 
-  parseStream.on('data', (response: ParseEventsResponse) => {
-    parseCount += 1
-    const rulesRequest: ApplyRulesRequest = { event: response.event }
-    rulesStream.write(rulesRequest)
-  })
+    parseStream.on('end', () => {
+      flushParseBatch()
+      console.log(`✓ Parse complete: ${parseCount} events`)
+      rulesStream.end()
+    })
 
-  parseStream.on('end', () => {
-    console.log(`✓ Parse complete: ${parseCount} events`)
-    rulesStream.end()
-  })
+    parseStream.on('error', (err: Error) => {
+      console.error('Parse error:', err)
+      process.exit(1)
+    })
 
-  parseStream.on('error', (err: Error) => {
-    console.error('Parse error:', err)
-    process.exit(1)
-  })
+    // Rules receives batches
+    let rulesBatch: (typeof response.event)[] = []
 
-  rulesStream.on('data', (response: ApplyRulesResponse) => {
-    rulesCount += 1
-    const aggregateRequest: AggregateRequest = { event: response.event }
-    aggregateStream.write(aggregateRequest)
-  })
+    const flushRulesBatch = () => {
+      if (rulesBatch.length === 0) return
 
-  rulesStream.on('end', () => {
-    console.log(`✓ Rules complete: ${rulesCount} events (filtered)`)
-    aggregateStream.end()
-  })
+      const batchRequest = {
+        events: rulesBatch,
+        batchSize: rulesBatch.length,
+      }
+      aggregateStream.write(batchRequest)
+      rulesBatch = []
+    }
 
-  rulesStream.on('error', (err: Error) => {
-    console.error('Rules error:', err)
-    process.exit(1)
-  })
+    rulesStream.on('data', (response: ApplyRulesBatchResponse) => {
+      if (response.events) {
+        rulesCount += response.events.length
+        rulesBatch.push(...response.events)
 
-  aggregateStream.on('data', (response: AggregateResponse) => {
-    aggregateCount += 1
-    const sinkRequest: WriteResultsRequest = { result: response.result }
-    sinkStream.write(sinkRequest)
-  })
+        if (rulesBatch.length >= config.batchSize) {
+          flushRulesBatch()
+        }
+      }
+    })
 
-  aggregateStream.on('end', () => {
-    console.log(`✓ Aggregate complete: ${aggregateCount} results`)
-    sinkStream.end()
-  })
+    rulesStream.on('end', () => {
+      flushRulesBatch()
+      console.log(`✓ Rules complete: ${rulesCount} events (filtered)`)
+      aggregateStream.end()
+    })
 
-  aggregateStream.on('error', (err: Error) => {
-    console.error('Aggregate error:', err)
-    process.exit(1)
-  })
+    rulesStream.on('error', (err: Error) => {
+      console.error('Rules error:', err)
+      process.exit(1)
+    })
+
+    // Aggregate receives batches, outputs batch of results
+    aggregateStream.on('data', (response: AggregateBatchResponse) => {
+      if (response.results) {
+        response.results.forEach((result) => {
+          aggregateCount += 1
+          const sinkRequest: WriteResultsRequest = { result }
+          sinkStream.write(sinkRequest)
+        })
+      }
+    })
+
+    aggregateStream.on('end', () => {
+      console.log(`✓ Aggregate complete: ${aggregateCount} results`)
+      sinkStream.end()
+    })
+
+    aggregateStream.on('error', (err: Error) => {
+      console.error('Aggregate error:', err)
+      process.exit(1)
+    })
+  } else {
+    // Original behavior: send individual events
+    ingestStream.on('data', (response: StreamEventsResponse) => {
+      if (firstEventTime === null) {
+        firstEventTime = Date.now()
+      }
+      ingestCount += 1
+      if (ingestCount % 10000 === 0) {
+        process.stdout.write(`\rIngested: ${ingestCount}`)
+      }
+      const parseRequest: ParseEventsRequest = { event: response.event }
+      parseStream.write(parseRequest)
+    })
+
+    ingestStream.on('end', () => {
+      console.log(`\n✓ Ingest complete: ${ingestCount} events`)
+      parseStream.end()
+    })
+
+    ingestStream.on('error', (err: Error) => {
+      console.error('Ingest error:', err)
+      process.exit(1)
+    })
+
+    parseStream.on('data', (response: ParseEventsResponse) => {
+      parseCount += 1
+      const rulesRequest: ApplyRulesRequest = { event: response.event }
+      rulesStream.write(rulesRequest)
+    })
+
+    parseStream.on('end', () => {
+      console.log(`✓ Parse complete: ${parseCount} events`)
+      rulesStream.end()
+    })
+
+    parseStream.on('error', (err: Error) => {
+      console.error('Parse error:', err)
+      process.exit(1)
+    })
+
+    rulesStream.on('data', (response: ApplyRulesResponse) => {
+      rulesCount += 1
+      const aggregateRequest: AggregateRequest = { event: response.event }
+      aggregateStream.write(aggregateRequest)
+    })
+
+    rulesStream.on('end', () => {
+      console.log(`✓ Rules complete: ${rulesCount} events (filtered)`)
+      aggregateStream.end()
+    })
+
+    rulesStream.on('error', (err: Error) => {
+      console.error('Rules error:', err)
+      process.exit(1)
+    })
+
+    aggregateStream.on('data', (response: AggregateResponse) => {
+      aggregateCount += 1
+      const sinkRequest: WriteResultsRequest = { result: response.result }
+      sinkStream.write(sinkRequest)
+    })
+
+    aggregateStream.on('end', () => {
+      console.log(`✓ Aggregate complete: ${aggregateCount} results`)
+      sinkStream.end()
+    })
+
+    aggregateStream.on('error', (err: Error) => {
+      console.error('Aggregate error:', err)
+      process.exit(1)
+    })
+  }
 }
 
 const main = async (): Promise<void> => {

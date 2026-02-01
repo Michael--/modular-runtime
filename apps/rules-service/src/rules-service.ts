@@ -4,6 +4,8 @@ import { BrokerClientManager } from '../../../packages/broker/src'
 import {
   ApplyRulesRequest,
   ApplyRulesResponse,
+  ApplyRulesBatchRequest,
+  ApplyRulesBatchResponse,
   RulesServiceClient,
   RulesServiceServer,
   RulesServiceService,
@@ -104,6 +106,26 @@ const startRulesServer = async (config: RulesConfig): Promise<grpc.Server> => {
         }
         const response: ApplyRulesResponse = { event: enriched }
         call.write(response)
+      })
+
+      call.on('end', () => {
+        call.end()
+      })
+    },
+    applyRulesBatch: (call) => {
+      call.on('data', (request: ApplyRulesBatchRequest) => {
+        if (!request.events || request.events.length === 0) {
+          return
+        }
+
+        const enrichedEvents = request.events
+          .map((event) => applyRules(event))
+          .filter((e) => e !== null)
+
+        if (enrichedEvents.length > 0) {
+          const response: ApplyRulesBatchResponse = { events: enrichedEvents }
+          call.write(response)
+        }
       })
 
       call.on('end', () => {

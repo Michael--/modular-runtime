@@ -7,6 +7,8 @@ import {
   ParseServiceService,
   ParseEventsRequest,
   ParseEventsResponse,
+  ParseEventsBatchRequest,
+  ParseEventsBatchResponse,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline'
 import { parseEvent } from './parse'
 
@@ -104,6 +106,26 @@ const startParseServer = async (config: ParseConfig): Promise<grpc.Server> => {
         }
         const response: ParseEventsResponse = { event: parsed }
         call.write(response)
+      })
+
+      call.on('end', () => {
+        call.end()
+      })
+    },
+    parseEventsBatch: (call) => {
+      call.on('data', (request: ParseEventsBatchRequest) => {
+        if (!request.events || request.events.length === 0) {
+          return
+        }
+
+        const parsedEvents = request.events
+          .map((event) => parseEvent(event))
+          .filter((e) => e !== null)
+
+        if (parsedEvents.length > 0) {
+          const response: ParseEventsBatchResponse = { events: parsedEvents }
+          call.write(response)
+        }
       })
 
       call.on('end', () => {

@@ -4,6 +4,7 @@ import { BrokerClientManager } from '../../../packages/broker/src'
 import {
   AggregateRequest,
   AggregateResponse,
+  AggregateBatchRequest,
   AggregateServiceClient,
   AggregateServiceServer,
   AggregateServiceService,
@@ -109,6 +110,26 @@ const startAggregateServer = async (config: AggregateConfig): Promise<grpc.Serve
           const response: AggregateResponse = { result }
           call.write(response)
         })
+        call.end()
+      })
+    },
+    aggregateBatch: (call) => {
+      const aggregator = createAggregator()
+
+      call.on('data', (request: AggregateBatchRequest) => {
+        if (!request.events || request.events.length === 0) {
+          return
+        }
+
+        request.events.forEach((event) => {
+          aggregator.add(event)
+        })
+      })
+
+      call.on('end', () => {
+        const results = aggregator.results()
+        const response = { results }
+        call.write(response)
         call.end()
       })
     },
