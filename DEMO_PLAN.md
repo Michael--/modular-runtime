@@ -577,26 +577,34 @@ examples/
 
 ### Sprint 4: Benchmarking (2 Tage)
 
-11. Metrics collector
-12. Benchmark harness
-13. First results
+11. [x] Metrics collector
+12. [x] Benchmark harness
+13. [x] First results
 
-### Sprint 5: UI + Demos (2-3 Tage)
+### Sprint 5: Batching Optimization (1-2 Tage, optional)
+
+Details in section "Sprint 5: Batching Optimization" below.
+
+### Sprint 6: UI + Demos (2-3 Tage)
 
 14. Supervisor UI extension
 15. Chaos testing
 16. Recovery demos
 
-### Sprint 6: Documentation (1-2 Tage)
+### Sprint 7: Documentation (1-2 Tage)
 
 17. README + comparison report
 18. Argument guide
 19. Diagrams
 
-### Sprint 7: Testing & Validation (1-2 Tage)
+### Sprint 8: Testing & Validation (1-2 Tage)
 
 20. Unit + integration tests
 21. Golden outputs + checksums
+
+### Sprint 9: Compute-Heavy Workloads (Optional Extension)
+
+Details in section "Sprint 9: Compute-Heavy Workloads (Optional Extension)" below.
 
 ---
 
@@ -684,7 +692,7 @@ examples/
 
 ---
 
-## Sprint 4: Batching Optimization
+## Sprint 5: Batching Optimization
 
 **Status:** In Progress  
 **Goal:** Reduce IPC overhead from 85-94% to <30% through batching
@@ -712,7 +720,7 @@ With batch_size=100:
 
 ### Implementation Plan
 
-#### 4.1 Proto Changes
+#### 5.1 Proto Changes
 
 ```protobuf
 // packages/proto/pipeline/v1/pipeline.proto
@@ -745,7 +753,7 @@ service Aggregate {
 }
 ```
 
-#### 4.2 Ingest Service (TypeScript)
+#### 5.2 Ingest Service (TypeScript)
 
 ```typescript
 // apps/ingest-service/src/ingest-service.ts
@@ -783,7 +791,7 @@ for await (const batch of batchEvents(readEvents(file), 100)) {
 }
 ```
 
-#### 4.3 Parse Service (Rust)
+#### 5.3 Parse Service (Rust)
 
 ```rust
 // apps/parse-service-rust/src/main.rs
@@ -815,7 +823,7 @@ async fn parse_events(
 }
 ```
 
-#### 4.4 Rules Service (Python)
+#### 5.4 Rules Service (Python)
 
 ```python
 # apps/rules-service-python/src/rules_service.py
@@ -836,7 +844,7 @@ def ApplyRules(self, request_iterator, context):
         yield EnrichedEventBatch(events=enriched)
 ```
 
-#### 4.5 Aggregate Service (Go)
+#### 5.5 Aggregate Service (Go)
 
 ```go
 // apps/aggregate-service-go/main.go
@@ -899,7 +907,7 @@ node run-split-pipeline.mjs 100000 --batch-size=100
 
 ---
 
-## Sprint 5: Compute-Heavy Workloads (Optional Extension)
+## Sprint 9: Compute-Heavy Workloads (Optional Extension)
 
 **Status:** Planning (not yet started)  
 **Goal:** Add CPU-intensive workload mode to shift focus from IPC to processing
@@ -957,7 +965,7 @@ Event pipeline is **I/O-bound** (real measurements from 1k events):
 
 ### Implementation Tasks
 
-#### 4.1 Proto Extensions
+#### 9.1 Proto Extensions
 
 Add to `packages/proto/pipeline/v1/pipeline.proto`:
 
@@ -1015,7 +1023,7 @@ message RawData {
 }
 ```
 
-#### 4.2 Service Updates (Dual-Path Pattern)
+#### 9.2 Service Updates (Dual-Path Pattern)
 
 **TypeScript (Ingest):** Add work item generator
 
@@ -1120,7 +1128,7 @@ func processWorkItem(item *WorkItem, metrics *ServiceMetrics) *AggregateResult {
 }
 ```
 
-#### 4.3 CLI Extensions
+#### 9.3 CLI Extensions
 
 ```bash
 # Work items only
@@ -1133,7 +1141,7 @@ node run-split-pipeline.mjs 100000 --workload=mixed --work-ratio=0.3
 node run-split-pipeline.mjs 1000 --workload=work-items --iterations=10000
 ```
 
-#### 4.4 Expected Metrics
+#### 9.4 Expected Metrics
 
 Separate output for events vs work-items:
 
@@ -1171,7 +1179,7 @@ TS Ingest/Sink: 0.5ms/item (I/O bound)
 - Event pipeline is realistic use case
 - Could be separate demo
 
-**Recommendation:** Defer to Sprint 5 or create as extension demo.
+**Recommendation:** Defer to Sprint 9 or create as extension demo.
 
 ### Implementation Estimate
 
