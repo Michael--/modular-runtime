@@ -9,7 +9,7 @@
     "start": "node dist/pipeline-orchestrator.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",

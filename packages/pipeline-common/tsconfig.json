@@ -4,7 +4,10 @@
     "outDir": "dist",
     "rootDir": "src",
     "module": "ES2022",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "paths": {
+      "@modular-runtime/proto/*": ["packages/proto/dist/*"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

@@ -1,54 +1,64 @@
-import { MetricsCollector } from '@modular-runtime/pipeline-common'
-import { IngestServiceClient } from '@modular-runtime/proto/pipeline/v1/ingest_service_pb.client'
-import { IngestRequest } from '@modular-runtime/proto/pipeline/v1/ingest_service_pb'
-import type { EventRecord } from '@modular-runtime/pipeline-common'
+import { randomUUID } from 'node:crypto'
+import { rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { credentials, type ClientReadableStream, type ServerWritableStream } from '@grpc/grpc-js'
+import {
+  IngestServiceClient,
+  type StreamEventsRequest,
+  type StreamEventsResponse,
+  WorkloadMode,
+  PayloadSize,
+} from '@modular-runtime/proto/pipeline/v1/pipeline'
+import { MetricsCollector, type ServiceMetrics } from './metrics.js'
+import type { EventRecord } from './types.js'
 
 /**
- * Example: Instrumented ingest service
- *
- * Shows how to measure:
- * - Processing time (JSON parse + transform)
- * - IPC send time (proto serialization + gRPC send)
- * - IPC recv time (tracked at request handler entry)
+ * Example: Instrumented ingest stream consumer.
+ * Shows how to measure processing, IPC send, and IPC receive times.
+ * @param events Events to serialize to a temporary NDJSON file.
+ * @param targetHost Hostname or IP of the ingest service.
+ * @param targetPort Port of the ingest service.
+ * @returns Collected service metrics.
+ * @throws When the ingest stream fails or the temp file cannot be written.
  */
-
 export async function runIngestServiceWithMetrics(
   events: EventRecord[],
   targetHost: string,
   targetPort: number
-): Promise<void> {
+): Promise<ServiceMetrics> {
   const metrics = new MetricsCollector('ingest-service')
-  const client = new IngestServiceClient(
-    `${targetHost}:${targetPort}`,
-    // @ts-expect-error - grpc credentials
-    grpc.credentials.createInsecure()
-  )
+  const tempFile = join(tmpdir(), `ingest-events-${randomUUID()}.ndjson`)
+  const payload = events.map((event) => JSON.stringify(event)).join('\n')
+  await writeFile(tempFile, payload.length > 0 ? `${payload}\n` : '')
 
-  const stream = client.ingest()
+  try {
+    const client = new IngestServiceClient(
+      `${targetHost}:${targetPort}`,
+      credentials.createInsecure()
+    )
 
-  for (const event of events) {
-    // Measure processing (transform to protobuf)
-    const request = metrics.recordProcessing(() => {
-      const req = new IngestRequest()
-      req.id = event.id
-      req.eventType = event.event_type
-      req.timestamp = event.timestamp
-      req.userId = event.user_id
-      req.data = JSON.stringify(event.data)
-      return req
-    })
+    const request: StreamEventsRequest = {
+      inputFile: tempFile,
+      batchSize: 1,
+      maxEvents: String(events.length),
+      enableBatching: false,
+      workloadMode: WorkloadMode.EVENTS,
+      workloadConfig: {
+        workRatio: 0,
+        payloadSize: PayloadSize.MEDIUM,
+        computeIterations: 0,
+      },
+    }
 
-    // Measure IPC send (serialization + network)
-    await metrics.recordSend(() => stream.write(request))
+    const stream = metrics.recordSend(() => client.streamEvents(request))
+    await consumeStream(stream, metrics)
+
+    metrics.printSummary()
+    return metrics.getMetrics()
+  } finally {
+    await rm(tempFile, { force: true })
   }
-
-  await stream.end()
-
-  // Print metrics
-  metrics.printSummary()
-
-  // Return metrics for aggregation
-  return metrics.getMetrics()
 }
 
 /**
@@ -57,40 +67,53 @@ export async function runIngestServiceWithMetrics(
 export class IngestServiceHandler {
   private metrics = new MetricsCollector('ingest-service')
 
-  async handleIngest(call: ServerWritableStream<IngestRequest, IngestResponse>) {
-    for await (const request of call) {
-      // Track IPC receive time
-      const recvStart = this.metrics.recordRecvStart()
+  /**
+   * Handles a StreamEvents request and records IPC/processing timing.
+   * @param call Stream request/response wrapper.
+   * @returns A promise that resolves once the response stream is closed.
+   */
+  async handleIngest(
+    call: ServerWritableStream<StreamEventsRequest, StreamEventsResponse>
+  ): Promise<void> {
+    const recvStart = this.metrics.recordRecvStart()
+    this.metrics.recordRecvEnd(recvStart)
 
-      // Parse the incoming message (already done by gRPC, but we measure the handler entry)
-      this.metrics.recordRecvEnd(recvStart)
+    const response = this.metrics.recordProcessing<StreamEventsResponse>(() => ({
+      event: {
+        rawJson: JSON.stringify({ inputFile: call.request.inputFile }),
+        sequence: '0',
+      },
+    }))
 
-      // Measure processing
-      const response = this.metrics.recordProcessing(() => {
-        // Business logic: parse, validate, transform
-        const _event = {
-          id: request.id,
-          event_type: request.eventType,
-          timestamp: request.timestamp,
-          user_id: request.userId,
-          data: JSON.parse(request.data),
-        }
-
-        // Create response
-        const resp = new IngestResponse()
-        resp.success = true
-        return resp
-      })
-
-      // Measure IPC send
-      this.metrics.recordSend(() => call.write(response))
-    }
-
-    // Print metrics at end
+    this.metrics.recordSend(() => call.write(response))
+    call.end()
     this.metrics.printSummary()
   }
 
-  getMetrics() {
+  /**
+   * Returns the current metrics snapshot.
+   * @returns Metrics collected so far.
+   */
+  getMetrics(): ServiceMetrics {
     return this.metrics.getMetrics()
   }
 }
+
+const consumeStream = (
+  stream: ClientReadableStream<StreamEventsResponse>,
+  metrics: MetricsCollector
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    stream.on('data', (response: StreamEventsResponse) => {
+      const recvStart = metrics.recordRecvStart()
+      metrics.recordRecvEnd(recvStart)
+      if (!response.event?.rawJson) {
+        return
+      }
+      metrics.recordProcessing(() => {
+        JSON.parse(response.event?.rawJson ?? '{}')
+      })
+    })
+    stream.on('end', resolve)
+    stream.on('error', reject)
+  })

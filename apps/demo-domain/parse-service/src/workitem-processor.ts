@@ -13,7 +13,7 @@ export function processWorkItem(item: WorkItem): ProcessedWorkItem {
   const normalizedVectors = item.vectors.map((v) => normalizeVector(v))
 
   // Matrix transpose
-  const transposedMatrix = transposeMatrix(item.matrix)
+  const transposedMatrix = transposeMatrix(item.matrix ?? { rows: [] })
 
   // CPU-intensive work
   let checksum = 0.0

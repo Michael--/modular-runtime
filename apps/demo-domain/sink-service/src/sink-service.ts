@@ -110,7 +110,7 @@ const formatResult = (result: NonNullable<WriteResultsRequest['result']>): strin
       workItemId: result.key,
       vectorChecksum: result.sum,
       finalScore: result.avg,
-      timestamp: Math.floor(result.count / 1000), // Reused count as timestamp
+      timestamp: Math.floor(Number(result.count) / 1000), // Reused count as timestamp
     })
   }
   // Regular event result

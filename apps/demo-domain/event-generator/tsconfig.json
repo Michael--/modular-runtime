@@ -9,5 +9,5 @@
       "@modular-runtime/pipeline-common": ["packages/pipeline-common/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "../../../packages/pipeline-common/src/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }
