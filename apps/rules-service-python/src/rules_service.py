@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 from concurrent import futures
 from typing import Iterable
 
@@ -18,17 +19,69 @@ SERVICE_NAME = "pipeline.v1.RulesService"
 DEFAULT_ROLE = "default"
 
 
+class ServiceMetrics:
+    """Metrics collector for IPC vs Processing time breakdown"""
+
+    def __init__(self, service_name: str):
+        self.service_name = service_name
+        self.events_processed = 0
+        self.processing_time_ms = 0.0
+        self.ipc_send_time_ms = 0.0
+        self.ipc_recv_time_ms = 0.0
+
+    def record_recv(self, duration_ms: float) -> None:
+        self.ipc_recv_time_ms += duration_ms
+
+    def record_processing(self, duration_ms: float) -> None:
+        self.processing_time_ms += duration_ms
+        self.events_processed += 1
+
+    def record_send(self, duration_ms: float) -> None:
+        self.ipc_send_time_ms += duration_ms
+
+    def print_summary(self) -> None:
+        total = self.processing_time_ms + self.ipc_send_time_ms + self.ipc_recv_time_ms
+        if total == 0:
+            return
+
+        print(f"\n=== {self.service_name} Metrics ===", flush=True)
+        print(f"Events processed: {self.events_processed}", flush=True)
+        print(f"Processing time: {self.processing_time_ms:.2f}ms ({(self.processing_time_ms / total) * 100:.1f}%)", flush=True)
+        print(f"IPC Send time: {self.ipc_send_time_ms:.2f}ms ({(self.ipc_send_time_ms / total) * 100:.1f}%)", flush=True)
+        print(f"IPC Recv time: {self.ipc_recv_time_ms:.2f}ms ({(self.ipc_recv_time_ms / total) * 100:.1f}%)", flush=True)
+        print("Avg per event:", flush=True)
+        print(f"  Processing: {self.processing_time_ms / self.events_processed:.4f}ms", flush=True)
+        print(f"  IPC Send: {self.ipc_send_time_ms / self.events_processed:.4f}ms", flush=True)
+        print(f"  IPC Recv: {self.ipc_recv_time_ms / self.events_processed:.4f}ms", flush=True)
+
+
 class RulesService(pipeline_pb2_grpc.RulesServiceServicer):
+    def __init__(self):
+        super().__init__()
+        self.metrics = ServiceMetrics("rules-service")
+
     def ApplyRules(
         self, request_iterator: Iterable[pipeline_pb2.ApplyRulesRequest], context: grpc.ServicerContext
     ) -> Iterable[pipeline_pb2.ApplyRulesResponse]:
         for request in request_iterator:
+            recv_start = time.perf_counter()
             if not request.event:
                 continue
+            self.metrics.record_recv((time.perf_counter() - recv_start) * 1000)
+
+            process_start = time.perf_counter()
             enriched = apply_rules(request.event)
+            self.metrics.record_processing((time.perf_counter() - process_start) * 1000)
+
             if enriched is None:
                 continue
-            yield pipeline_pb2.ApplyRulesResponse(event=enriched)
+
+            send_start = time.perf_counter()
+            response = pipeline_pb2.ApplyRulesResponse(event=enriched)
+            self.metrics.record_send((time.perf_counter() - send_start) * 1000)
+            yield response
+
+        self.metrics.print_summary()
 
 
 def register_with_broker(host: str, port: int, broker_address: str) -> None:

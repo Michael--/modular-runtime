@@ -3,6 +3,7 @@ import * as grpc from '@grpc/grpc-js'
 import { createWriteStream } from 'node:fs'
 import { once } from 'node:events'
 import { BrokerClientManager } from '../../../packages/broker/src'
+import { MetricsCollector } from '@modular-runtime/pipeline-common'
 import {
   SinkServiceClient,
   SinkServiceServer,
@@ -115,6 +116,8 @@ const writeWithBackpressure = async (
 }
 
 const startSinkServer = async (config: SinkConfig): Promise<grpc.Server> => {
+  const metrics = new MetricsCollector('sink-service')
+
   const sinkService: SinkServiceServer = {
     writeResults: (call, callback) => {
       const output = createWriteStream(config.outputFile, { encoding: 'utf8' })
@@ -122,18 +125,24 @@ const startSinkServer = async (config: SinkConfig): Promise<grpc.Server> => {
       let writeChain = Promise.resolve()
 
       call.on('data', (request: WriteResultsRequest) => {
+        const recvStart = metrics.recordRecvStart()
+        metrics.recordRecvEnd(recvStart)
+
         if (!request.result) {
           return
         }
-        const line = `${formatResult(request.result)}\n`
+        const line = metrics.recordProcessing(() => `${formatResult(request.result!)}\n`)
         written += 1
-        writeChain = writeChain.then(() => writeWithBackpressure(output, line))
+        writeChain = writeChain.then(() =>
+          metrics.recordSend(() => writeWithBackpressure(output, line))
+        )
       })
 
       call.on('end', () => {
         writeChain
           .then(() => new Promise<void>((resolve) => output.end(() => resolve())))
           .then(() => {
+            metrics.printSummary()
             const response: WriteResultsResponse = { written: String(written) }
             callback(null, response)
           })

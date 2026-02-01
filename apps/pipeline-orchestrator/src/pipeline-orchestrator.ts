@@ -16,7 +16,7 @@ import {
   AggregateResponse,
   WriteResultsRequest,
   WriteResultsResponse,
-} from '../../../packages/proto/generated/ts/pipeline/v1/pipeline'
+} from '../../../packages/proto/generated/ts/pipeline/v1/pipeline.js'
 
 interface PipelineConfig {
   inputFile: string
@@ -127,14 +127,14 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
   const request: StreamEventsRequest = {
     inputFile: config.inputFile,
     batchSize: 1000,
-    maxEvents: BigInt(config.maxEvents),
+    maxEvents: config.maxEvents.toString(),
   }
 
   let ingestCount = 0
   let parseCount = 0
   let rulesCount = 0
   let aggregateCount = 0
-  let sinkCount = 0
+  let _sinkCount = 0
 
   // Start timing after connection setup
   const startTime = Date.now()
@@ -144,31 +144,35 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
   const parseStream = parseClient.parseEvents()
   const rulesStream = rulesClient.applyRules()
   const aggregateStream = aggregateClient.aggregate()
-  const sinkStream = sinkClient.writeResults((err, response: WriteResultsResponse | undefined) => {
-    const endTime = Date.now()
-    const totalDuration = endTime - startTime
-    const processingDuration = firstEventTime ? endTime - firstEventTime : totalDuration
+  const sinkStream = sinkClient.writeResults(
+    (err: Error | null, response: WriteResultsResponse | undefined) => {
+      const endTime = Date.now()
+      const totalDuration = endTime - startTime
+      const processingDuration = firstEventTime ? endTime - firstEventTime : totalDuration
 
-    if (err) {
-      console.error('Sink error:', err)
-      return
+      if (err) {
+        console.error('Sink error:', err)
+        return
+      }
+
+      console.log(
+        `\n✓ Pipeline complete! Written ${response?.written || 0} results to ${config.outputFile}`
+      )
+      console.log('\n=== Performance Metrics ===')
+      console.log(`Total events processed: ${ingestCount}`)
+      console.log(
+        `Events passed rules: ${rulesCount} (${((rulesCount / ingestCount) * 100).toFixed(1)}%)`
+      )
+      console.log(
+        `Processing time: ${processingDuration}ms (${(processingDuration / 1000).toFixed(2)}s)`
+      )
+      console.log(
+        `Throughput: ${((ingestCount / processingDuration) * 1000).toFixed(0)} events/sec`
+      )
+      console.log(`Avg latency per event: ${(processingDuration / ingestCount).toFixed(3)}ms`)
+      process.exit(0)
     }
-
-    console.log(
-      `\n✓ Pipeline complete! Written ${response?.written || 0} results to ${config.outputFile}`
-    )
-    console.log('\n=== Performance Metrics ===')
-    console.log(`Total events processed: ${ingestCount}`)
-    console.log(
-      `Events passed rules: ${rulesCount} (${((rulesCount / ingestCount) * 100).toFixed(1)}%)`
-    )
-    console.log(
-      `Processing time: ${processingDuration}ms (${(processingDuration / 1000).toFixed(2)}s)`
-    )
-    console.log(`Throughput: ${((ingestCount / processingDuration) * 1000).toFixed(0)} events/sec`)
-    console.log(`Avg latency per event: ${(processingDuration / ingestCount).toFixed(3)}ms`)
-    process.exit(0)
-  })
+  )
 
   // Wire up the pipeline
   ingestStream.on('data', (response: StreamEventsResponse) => {
@@ -188,7 +192,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     parseStream.end()
   })
 
-  ingestStream.on('error', (err) => {
+  ingestStream.on('error', (err: Error) => {
     console.error('Ingest error:', err)
     process.exit(1)
   })
@@ -204,7 +208,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     rulesStream.end()
   })
 
-  parseStream.on('error', (err) => {
+  parseStream.on('error', (err: Error) => {
     console.error('Parse error:', err)
     process.exit(1)
   })
@@ -220,7 +224,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     aggregateStream.end()
   })
 
-  rulesStream.on('error', (err) => {
+  rulesStream.on('error', (err: Error) => {
     console.error('Rules error:', err)
     process.exit(1)
   })
@@ -236,7 +240,7 @@ const runPipeline = async (config: PipelineConfig): Promise<void> => {
     sinkStream.end()
   })
 
-  aggregateStream.on('error', (err) => {
+  aggregateStream.on('error', (err: Error) => {
     console.error('Aggregate error:', err)
     process.exit(1)
   })

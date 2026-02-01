@@ -175,6 +175,9 @@ importers:
       '@modular-runtime/broker':
         specifier: workspace:*
         version: link:../../packages/broker
+      '@modular-runtime/pipeline-common':
+        specifier: workspace:*
+        version: link:../../packages/pipeline-common
       '@modular-runtime/proto':
         specifier: workspace:*
         version: link:../../packages/proto
@@ -285,6 +288,9 @@ importers:
       '@modular-runtime/broker':
         specifier: workspace:*
         version: link:../../packages/broker
+      '@modular-runtime/pipeline-common':
+        specifier: workspace:*
+        version: link:../../packages/pipeline-common
       '@modular-runtime/proto':
         specifier: workspace:*
         version: link:../../packages/proto

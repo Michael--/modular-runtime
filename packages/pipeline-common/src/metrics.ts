@@ -96,6 +96,7 @@ export class MetricsCollector {
    * Print metrics summary
    */
   printSummary(): void {
+    /* eslint-disable no-console */
     const m = this.getMetrics()
     const totalTime = m.processingTimeMs + m.ipcSendTimeMs + m.ipcRecvTimeMs
     const avgProcessing = m.processingTimeMs / m.eventsProcessed
@@ -117,6 +118,7 @@ export class MetricsCollector {
     console.log(`  Processing: ${avgProcessing.toFixed(4)}ms`)
     console.log(`  IPC Send: ${avgIpcSend.toFixed(4)}ms`)
     console.log(`  IPC Recv: ${avgIpcRecv.toFixed(4)}ms`)
+    /* eslint-enable no-console */
   }
 }
 
@@ -153,6 +155,7 @@ export function aggregatePipelineMetrics(
 }
 
 export function printPipelineMetrics(metrics: PipelineMetrics): void {
+  /* eslint-disable no-console */
   console.log('\n=== Pipeline Metrics Summary ===')
   console.log(`Total events: ${metrics.totalEvents}`)
   console.log(`Total time: ${(metrics.totalTimeMs / 1000).toFixed(2)}s`)
@@ -179,4 +182,5 @@ export function printPipelineMetrics(metrics: PipelineMetrics): void {
   console.log(`Current throughput: ${currentThroughput.toFixed(0)} events/sec`)
   console.log(`Estimated optimized throughput: ${optimizedThroughput.toFixed(0)} events/sec`)
   console.log(`Improvement factor: ${(optimizedThroughput / currentThroughput).toFixed(1)}x`)
+  /* eslint-enable no-console */
 }

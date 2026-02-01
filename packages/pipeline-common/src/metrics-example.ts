@@ -68,7 +68,7 @@ export class IngestServiceHandler {
       // Measure processing
       const response = this.metrics.recordProcessing(() => {
         // Business logic: parse, validate, transform
-        const event = {
+        const _event = {
           id: request.id,
           event_type: request.eventType,
           timestamp: request.timestamp,

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "exports": {
+    ".": "./dist/index.js",
     "./*": "./dist/*"
   },
   "devDependencies": {

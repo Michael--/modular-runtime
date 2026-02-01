@@ -10,6 +10,9 @@ use proto::pipeline::v1::parse_service_server::{ParseService, ParseServiceServer
 use serde_json::Value;
 use std::error::Error;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Server;
@@ -31,6 +34,47 @@ struct ParseConfig {
 #[derive(Default)]
 struct ParseServiceImpl;
 
+#[derive(Default, Clone)]
+struct ServiceMetrics {
+  events_processed: Arc<Mutex<u64>>,
+  processing_time_ms: Arc<Mutex<f64>>,
+  ipc_send_time_ms: Arc<Mutex<f64>>,
+  ipc_recv_time_ms: Arc<Mutex<f64>>,
+}
+
+impl ServiceMetrics {
+  fn record_recv(&self, duration_ms: f64) {
+    *self.ipc_recv_time_ms.lock().unwrap() += duration_ms;
+  }
+
+  fn record_processing(&self, duration_ms: f64) {
+    *self.processing_time_ms.lock().unwrap() += duration_ms;
+    *self.events_processed.lock().unwrap() += 1;
+  }
+
+  fn record_send(&self, duration_ms: f64) {
+    *self.ipc_send_time_ms.lock().unwrap() += duration_ms;
+  }
+
+  fn print_summary(&self, service_name: &str) {
+    let events = *self.events_processed.lock().unwrap();
+    let processing = *self.processing_time_ms.lock().unwrap();
+    let send = *self.ipc_send_time_ms.lock().unwrap();
+    let recv = *self.ipc_recv_time_ms.lock().unwrap();
+    let total = processing + send + recv;
+
+    println!("\n=== {} Metrics ===", service_name);
+    println!("Events processed: {}", events);
+    println!("Processing time: {:.2}ms ({:.1}%)", processing, (processing / total) * 100.0);
+    println!("IPC Send time: {:.2}ms ({:.1}%)", send, (send / total) * 100.0);
+    println!("IPC Recv time: {:.2}ms ({:.1}%)", recv, (recv / total) * 100.0);
+    println!("Avg per event:");
+    println!("  Processing: {:.4}ms", processing / events as f64);
+    println!("  IPC Send: {:.4}ms", send / events as f64);
+    println!("  IPC Recv: {:.4}ms", recv / events as f64);
+  }
+}
+
 #[tonic::async_trait]
 impl ParseService for ParseServiceImpl {
   type ParseEventsStream = ReceiverStream<Result<ParseEventsResponse, Status>>;
@@ -41,26 +85,39 @@ impl ParseService for ParseServiceImpl {
   ) -> Result<Response<Self::ParseEventsStream>, Status> {
     let mut input = request.into_inner();
     let (tx, rx) = mpsc::channel(128);
+    let metrics = ServiceMetrics::default();
 
     tokio::spawn(async move {
       loop {
+        let recv_start = Instant::now();
         match input.message().await {
           Ok(Some(message)) => {
+            metrics.record_recv(recv_start.elapsed().as_secs_f64() * 1000.0);
+
             if let Some(event) = message.event {
-              if let Some(parsed) = parse_event(&event) {
-                if tx
+              let process_start = Instant::now();
+              let parsed = parse_event(&event);
+              metrics.record_processing(process_start.elapsed().as_secs_f64() * 1000.0);
+
+              if let Some(parsed) = parsed {
+                let send_start = Instant::now();
+                let send_result = tx
                   .send(Ok(ParseEventsResponse {
                     event: Some(parsed),
                   }))
-                  .await
-                  .is_err()
-                {
+                  .await;
+                metrics.record_send(send_start.elapsed().as_secs_f64() * 1000.0);
+
+                if send_result.is_err() {
                   break;
                 }
               }
             }
           }
-          Ok(None) => break,
+          Ok(None) => {
+            metrics.print_summary("parse-service");
+            break;
+          }
           Err(error) => {
             let _ = tx.send(Err(Status::internal(error.to_string()))).await;
             break;

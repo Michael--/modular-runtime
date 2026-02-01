@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs'
 import { once } from 'node:events'
 import { createInterface } from 'node:readline'
 import { BrokerClientManager } from '../../../packages/broker/src'
+import { MetricsCollector } from '@modular-runtime/pipeline-common'
 import {
   GetStatusRequest,
   GetStatusResponse,
@@ -129,10 +130,14 @@ const writeWithBackpressure = async (
 
 const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => {
   let streamedEvents = 0
+  const metrics = new MetricsCollector('ingest-service')
 
   const ingestService: IngestServiceServer = {
     streamEvents: (call) => {
+      const recvStart = metrics.recordRecvStart()
       const request = call.request
+      metrics.recordRecvEnd(recvStart)
+
       const inputFile = request.inputFile.length > 0 ? request.inputFile : config.defaultInputFile
       const maxEvents = parseMaxEvents(request.maxEvents)
       let cancelled = false
@@ -157,17 +162,20 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
               break
             }
 
-            await writeWithBackpressure(call, {
+            const response = metrics.recordProcessing(() => ({
               event: {
                 rawJson: line,
                 sequence: String(sequence),
               },
-            })
+            }))
+
+            await metrics.recordSend(() => writeWithBackpressure(call, response))
             sequence += 1
             streamedEvents += 1
           }
 
           call.end()
+          metrics.printSummary()
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error)
           call.destroy(createServiceError(message, grpc.status.INTERNAL))
