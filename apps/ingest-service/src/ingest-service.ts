@@ -13,7 +13,10 @@ import {
   IngestServiceService,
   StreamEventsRequest,
   StreamEventsResponse,
+  WorkloadMode,
+  PayloadSize,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline'
+import { generateWorkItem } from './workitem-generator'
 
 interface IngestConfig {
   host: string
@@ -142,6 +145,12 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
       const maxEvents = parseMaxEvents(request.maxEvents)
       const enableBatching = request.enableBatching ?? false
       const batchSize = request.batchSize > 0 ? request.batchSize : 100
+      const workloadMode = request.workloadMode ?? WorkloadMode.EVENTS
+      const workloadConfig = request.workloadConfig ?? {
+        workRatio: 0,
+        payloadSize: PayloadSize.MEDIUM,
+        computeIterations: 500,
+      }
       let cancelled = false
 
       call.on('cancelled', () => {
@@ -150,6 +159,34 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
 
       const run = async () => {
         try {
+          // WORK_ITEMS mode: generate WorkItems instead of reading file
+          if (workloadMode === WorkloadMode.WORK_ITEMS) {
+            let sequence = 0
+            const totalItems = maxEvents
+
+            while (sequence < totalItems && !cancelled) {
+              const workItem = metrics.recordProcessing(() =>
+                generateWorkItem(`w-${String(sequence).padStart(6, '0')}`, workloadConfig)
+              )
+
+              const response: StreamEventsResponse = {
+                event: {
+                  rawJson: JSON.stringify(workItem),
+                  sequence: String(sequence),
+                },
+              }
+
+              await metrics.recordSend(() => writeWithBackpressure(call, response))
+              streamedEvents += 1
+              sequence += 1
+            }
+
+            call.end()
+            metrics.printSummary()
+            return
+          }
+
+          // EVENTS mode (default): read from file
           const input = createReadStream(inputFile)
           const reader = createInterface({ input })
           let sequence = 0

@@ -11,6 +11,7 @@ import {
   ParseEventsBatchResponse,
 } from '../../../packages/proto/generated/ts/pipeline/v1/pipeline'
 import { parseEvent } from './parse'
+import { processWorkItem } from './workitem-processor'
 
 interface ParseConfig {
   host: string
@@ -100,6 +101,27 @@ const startParseServer = async (config: ParseConfig): Promise<grpc.Server> => {
         if (!request.event) {
           return
         }
+
+        // Check if this is a WorkItem
+        try {
+          const data = JSON.parse(request.event.rawJson)
+          if (data.id && data.vectors && data.matrix) {
+            // This is a WorkItem - process it
+            const processedItem = processWorkItem(data)
+            const response: ParseEventsResponse = {
+              event: {
+                rawJson: JSON.stringify(processedItem),
+                sequence: request.event.sequence,
+              },
+            }
+            call.write(response)
+            return
+          }
+        } catch {
+          // Not a WorkItem, fall through to normal event parsing
+        }
+
+        // Normal event parsing
         const parsed = parseEvent(request.event)
         if (!parsed) {
           return
@@ -119,7 +141,25 @@ const startParseServer = async (config: ParseConfig): Promise<grpc.Server> => {
         }
 
         const parsedEvents = request.events
-          .map((event) => parseEvent(event))
+          .map((event) => {
+            // Check if this is a WorkItem
+            try {
+              const data = JSON.parse(event.rawJson)
+              if (data.id && data.vectors && data.matrix) {
+                // Process WorkItem
+                const processedItem = processWorkItem(data)
+                return {
+                  rawJson: JSON.stringify(processedItem),
+                  sequence: event.sequence,
+                }
+              }
+            } catch {
+              // Not a WorkItem, fall through to normal parsing
+            }
+
+            // Normal event parsing
+            return parseEvent(event)
+          })
           .filter((e) => e !== null)
 
         if (parsedEvents.length > 0) {

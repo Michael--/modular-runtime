@@ -38,6 +38,26 @@ message StreamEventsRequest {
   int32 batch_size = 2;
   int64 max_events = 3;
   bool enable_batching = 4;
+  WorkloadMode workload_mode = 5;
+  WorkloadConfig workload_config = 6;
+}
+
+enum WorkloadMode {
+  EVENTS = 0;       // Default: event pipeline
+  WORK_ITEMS = 1;   // Compute-heavy workloads
+  MIXED = 2;        // Mix of both
+}
+
+message WorkloadConfig {
+  float work_ratio = 1;        // 0.0-1.0: ratio of work-items vs events
+  PayloadSize payload_size = 2;
+  int32 compute_iterations = 3;
+}
+
+enum PayloadSize {
+  SMALL = 0;   // 10 elements
+  MEDIUM = 1;  // 100 elements
+  LARGE = 2;   // 1000 elements
 }
 
 message GetStatusRequest {
@@ -121,6 +141,41 @@ message IngestStatus {
 message Event {
   string raw_json = 1;
   int64 sequence = 2;
+}
+
+message WorkItem {
+  string id = 1;
+  repeated Vector vectors = 2;
+  Matrix matrix = 3;
+  string text = 4;
+  int32 iterations = 5;
+}
+
+message Vector {
+  repeated double values = 1;
+}
+
+message Matrix {
+  repeated Vector rows = 1;
+}
+
+message ProcessedWorkItem {
+  string id = 1;
+  repeated Vector normalized_vectors = 2;
+  Matrix transposed_matrix = 3;
+  double checksum = 4;
+}
+
+message EnrichedWorkItem {
+  string id = 1;
+  repeated double eigenvalues = 2;
+  double score = 3;
+}
+
+message WorkItemResult {
+  string id = 1;
+  double final_score = 2;
+  int64 processed_count = 3;
 }
 
 message ParsedEvent {

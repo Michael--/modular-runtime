@@ -1,4 +1,5 @@
 mod proto;
+mod workitem;
 
 use chrono::DateTime;
 use chrono::FixedOffset;
@@ -24,6 +25,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
+use workitem::{WorkItem, process_work_item};
 
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 6002;
@@ -207,6 +209,22 @@ fn parse_event(event: &Event) -> Option<ParsedEvent> {
   let parsed: Value = serde_json::from_str(&event.raw_json).ok()?;
   let object = parsed.as_object()?;
 
+  // Check if this is a WorkItem
+  if object.contains_key("id") && object.contains_key("vectors") && object.contains_key("matrix") {
+    if let Ok(work_item) = serde_json::from_value::<WorkItem>(parsed.clone()) {
+      let processed = process_work_item(&work_item);
+      let processed_json = serde_json::to_string(&processed).ok()?;
+      return Some(ParsedEvent {
+        r#type: String::from("work-item"),
+        user: processed_json, // Store processed WorkItem JSON in user field (hack for demo)
+        value: 0,
+        timestamp: 0,
+        sequence: event.sequence.clone(),
+      });
+    }
+  }
+
+  // Normal event parsing
   let ts = object.get("ts")?.as_str()?;
   let event_type = object.get("type")?.as_str()?;
   let user = object.get("user")?.as_str()?;
