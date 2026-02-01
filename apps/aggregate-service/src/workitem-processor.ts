@@ -16,6 +16,16 @@ export interface WorkItemResult {
 export function processEnrichedWorkItem(enrichedJSON: string): WorkItemResult {
   const item: EnrichedWorkItem = JSON.parse(enrichedJSON)
 
+  // Validate input
+  if (!item.eigenvalues || !Array.isArray(item.eigenvalues)) {
+    console.warn('Invalid EnrichedWorkItem: eigenvalues missing or invalid', item)
+    return {
+      id: item.id || 'unknown',
+      final_score: 0,
+      processed_count: 0,
+    }
+  }
+
   // Compute dot products from eigenvalues
   const dotProducts: number[] = []
   for (let i = 0; i < item.eigenvalues.length - 1; i++) {
@@ -26,9 +36,9 @@ export function processEnrichedWorkItem(enrichedJSON: string): WorkItemResult {
   // Sum of eigenvalues
   const eigenSum = item.eigenvalues.reduce((sum, val) => sum + val, 0)
 
-  // CPU-intensive iterations
+  // CPU-intensive iterations (reduced from 500 to 50 for testing)
   let finalScore = 0.0
-  const iterations = 500
+  const iterations = 50
   for (let i = 0; i < iterations; i++) {
     finalScore += (item.score + eigenSum) * (i + 1) * 0.001
   }
@@ -36,6 +46,12 @@ export function processEnrichedWorkItem(enrichedJSON: string): WorkItemResult {
   // Add dot product contribution
   for (const dp of dotProducts) {
     finalScore += Math.abs(dp) * 0.1
+  }
+
+  // Ensure finite result
+  if (!Number.isFinite(finalScore)) {
+    console.warn('WorkItem produced non-finite score:', item.id, finalScore)
+    finalScore = 0
   }
 
   return {

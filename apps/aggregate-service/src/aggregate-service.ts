@@ -130,9 +130,9 @@ const startAggregateServer = async (config: AggregateConfig): Promise<grpc.Serve
         // Send WorkItem results as individual results
         workItemResults.forEach((item) => {
           const workItemRes = {
-            key: item.work_item_id,
+            key: item.id,
             count: '0',
-            sum: String(Math.round(item.vector_checksum)),
+            sum: String(Math.round(item.vector_checksum || 0)),
             avg: item.final_score,
           }
           call.write({ result: workItemRes })

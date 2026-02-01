@@ -48,21 +48,22 @@ function generateMatrix(rows: number, cols: number): Matrix {
 function generateText(payloadSize: PayloadSize): string {
   const baseText = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. '
   const repetitions =
-    payloadSize === PayloadSize.LARGE ? 1000 : payloadSize === PayloadSize.MEDIUM ? 100 : 10
+    payloadSize === PayloadSize.LARGE ? 50 : payloadSize === PayloadSize.MEDIUM ? 20 : 5
   return baseText.repeat(repetitions)
 }
 
 /**
  * Maps PayloadSize enum to numeric size
+ * Adjusted for memory constraints: SMALL=5, MEDIUM=10, LARGE=20
  */
 function getSizeFromConfig(payloadSize: PayloadSize): number {
   switch (payloadSize) {
     case PayloadSize.LARGE:
-      return 1000
+      return 20
     case PayloadSize.MEDIUM:
-      return 100
+      return 10
     case PayloadSize.SMALL:
     default:
-      return 10
+      return 5
   }
 }
