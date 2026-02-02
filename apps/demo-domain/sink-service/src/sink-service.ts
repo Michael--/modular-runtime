@@ -74,7 +74,10 @@ const parseArgs = (argv: string[]): SinkConfig => {
   return config
 }
 
-const formatResult = (result: NonNullable<WriteResultsRequest['result']>): string => {
+const formatResult = (result: NonNullable<WriteResultsRequest['result']> | undefined): string => {
+  if (!result) {
+    return ''
+  }
   // Check if this is a WorkItemResult by looking for workItemId
   if (result.key.startsWith('w-')) {
     // WorkItem result - include all fields
@@ -114,7 +117,7 @@ const startSinkServer = async (config: SinkConfig): Promise<grpc.Server> => {
         if (!request.result) {
           return
         }
-        const line = metrics.recordProcessing(() => `${formatResult(request.result!)}\n`)
+        const line = metrics.recordProcessing(() => `${formatResult(request.result)}\n`)
         written += 1
         writeChain = writeChain.then(() =>
           metrics.recordSend(() => writeWithBackpressure(output, line))
