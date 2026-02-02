@@ -12,7 +12,6 @@ const args = [
   `--go_out=${outputDir}`,
   `--go-grpc_out=${outputDir}`,
   `${protoRoot}/pipeline/v1/pipeline.proto`,
-  `${protoRoot}/broker/v1/broker.proto`,
 ]
 
 const child = spawn('protoc', args, { stdio: 'inherit' })

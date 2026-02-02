@@ -1,12 +1,10 @@
 /* eslint-disable no-console */
 import * as grpc from '@grpc/grpc-js'
-import { BrokerClientManager } from '../../../../packages/broker/src'
 import {
   ApplyRulesRequest,
   ApplyRulesResponse,
   ApplyRulesBatchRequest,
   ApplyRulesBatchResponse,
-  RulesServiceClient,
   RulesServiceServer,
   RulesServiceService,
 } from '../../../../packages/proto/generated/ts/pipeline/v1/pipeline'
@@ -16,17 +14,11 @@ import { processWorkItem } from './workitem-processor'
 interface RulesConfig {
   host: string
   port: number
-  brokerHost: string
-  brokerPort: number
-  registerWithBroker: boolean
 }
 
 const DEFAULT_CONFIG: RulesConfig = {
   host: '127.0.0.1',
   port: 6003,
-  brokerHost: '127.0.0.1',
-  brokerPort: 50051,
-  registerWithBroker: true,
 }
 
 const usage = `Usage: rules-service [options]
@@ -34,9 +26,6 @@ const usage = `Usage: rules-service [options]
 Options:
   --host <host>          Bind host (default: ${DEFAULT_CONFIG.host})
   --port <port>          Bind port (default: ${DEFAULT_CONFIG.port})
-  --broker-host <host>   Broker host (default: ${DEFAULT_CONFIG.brokerHost})
-  --broker-port <port>   Broker port (default: ${DEFAULT_CONFIG.brokerPort})
-  --no-broker            Disable broker registration
   -h, --help             Show this help message
 `
 
@@ -68,23 +57,6 @@ const parseArgs = (argv: string[]): RulesConfig => {
     if (arg === '--port') {
       config.port = Number(getValue(i + 1))
       i += 1
-      continue
-    }
-
-    if (arg === '--broker-host') {
-      config.brokerHost = getValue(i + 1)
-      i += 1
-      continue
-    }
-
-    if (arg === '--broker-port') {
-      config.brokerPort = Number(getValue(i + 1))
-      i += 1
-      continue
-    }
-
-    if (arg === '--no-broker') {
-      config.registerWithBroker = false
       continue
     }
 
@@ -175,13 +147,6 @@ const startRulesServer = async (config: RulesConfig): Promise<grpc.Server> => {
   })
 
   console.log(`Rules service listening on ${config.host}:${config.port}`)
-
-  if (config.registerWithBroker) {
-    const brokerManager = BrokerClientManager.create(config.brokerHost, config.brokerPort)
-    brokerManager.onConnected = () => {
-      brokerManager.registerService(RulesServiceClient, config.host, config.port)
-    }
-  }
 
   return server
 }

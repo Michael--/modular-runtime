@@ -3,9 +3,7 @@ import { defineConfig } from 'vite'
 
 const builtins = [...builtinModules, ...builtinModules.map((moduleName) => `node:${moduleName}`)]
 
-const externals = Array.from(
-  new Set([...builtins, '@grpc/grpc-js', '@modular-runtime/broker', '@modular-runtime/proto'])
-)
+const externals = Array.from(new Set([...builtins, '@grpc/grpc-js', '@modular-runtime/proto']))
 
 export default defineConfig({
   build: {

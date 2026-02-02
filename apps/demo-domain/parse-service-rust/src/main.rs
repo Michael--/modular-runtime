@@ -3,9 +3,6 @@ mod workitem;
 
 use chrono::DateTime;
 use chrono::FixedOffset;
-use proto::broker::v1::ServiceInfo;
-use proto::broker::v1::broker_service_client::BrokerServiceClient;
-use proto::broker::v1::RegisterServiceRequest;
 use proto::pipeline::v1::{
   Event,
   ParseEventsBatchRequest,
@@ -14,7 +11,7 @@ use proto::pipeline::v1::{
   ParseEventsRequest,
   ParseEventsResponse,
 };
-use proto::pipeline::v1::parse_service_server::{ParseService, ParseServiceServer, SERVICE_NAME as PARSE_SERVICE_NAME};
+use proto::pipeline::v1::parse_service_server::{ParseService, ParseServiceServer};
 use serde_json::Value;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -29,15 +26,11 @@ use workitem::{WorkItem, process_work_item};
 
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 6002;
-const DEFAULT_BROKER_ADDRESS: &str = "127.0.0.1:50051";
-const DEFAULT_ROLE: &str = "default";
 
 #[derive(Clone, Debug)]
 struct ParseConfig {
   host: String,
   port: u16,
-  broker_address: String,
-  register_with_broker: bool,
 }
 
 #[derive(Default)]
@@ -255,35 +248,10 @@ fn parse_event(event: &Event) -> Option<ParsedEvent> {
   })
 }
 
-fn normalize_broker_url(address: &str) -> String {
-  if address.starts_with("http://") || address.starts_with("https://") {
-    address.to_string()
-  } else {
-    format!("http://{}", address)
-  }
-}
-
-async fn register_with_broker(config: &ParseConfig) -> Result<(), Box<dyn Error>> {
-  let broker_url = normalize_broker_url(&config.broker_address);
-  let mut broker = BrokerServiceClient::connect(broker_url).await?;
-  let request = RegisterServiceRequest {
-    info: Some(ServiceInfo {
-      interface_name: PARSE_SERVICE_NAME.to_string(),
-      role: DEFAULT_ROLE.to_string(),
-    }),
-    url: config.host.clone(),
-    port: config.port as i32,
-  };
-  broker.register_service(request).await?;
-  Ok(())
-}
-
 fn parse_args() -> Result<ParseConfig, Box<dyn Error>> {
   let mut config = ParseConfig {
     host: DEFAULT_HOST.to_string(),
     port: DEFAULT_PORT,
-    broker_address: DEFAULT_BROKER_ADDRESS.to_string(),
-    register_with_broker: true,
   };
 
   let mut args = std::env::args().skip(1).peekable();
@@ -296,16 +264,10 @@ fn parse_args() -> Result<ParseConfig, Box<dyn Error>> {
         let value = args.next().ok_or("Missing value for --port")?;
         config.port = value.parse()?;
       }
-      "--broker" => {
-        config.broker_address = args.next().ok_or("Missing value for --broker")?;
-      }
-      "--no-broker" => {
-        config.register_with_broker = false;
-      }
       "-h" | "--help" => {
         println!(
-          "Usage: parse-service-rust [options]\n\nOptions:\n  --host <host>       Bind host (default: {})\n  --port <port>       Bind port (default: {})\n  --broker <address>  Broker address (default: {})\n  --no-broker         Disable broker registration\n  -h, --help          Show this help message",
-          DEFAULT_HOST, DEFAULT_PORT, DEFAULT_BROKER_ADDRESS
+          "Usage: parse-service-rust [options]\n\nOptions:\n  --host <host>       Bind host (default: {})\n  --port <port>       Bind port (default: {})\n  -h, --help          Show this help message",
+          DEFAULT_HOST, DEFAULT_PORT
         );
         std::process::exit(0);
       }
@@ -320,15 +282,6 @@ fn parse_args() -> Result<ParseConfig, Box<dyn Error>> {
 async fn main() -> Result<(), Box<dyn Error>> {
   let config = parse_args()?;
   let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
-
-  if config.register_with_broker {
-    let config_clone = config.clone();
-    tokio::spawn(async move {
-      if let Err(error) = register_with_broker(&config_clone).await {
-        eprintln!("Failed to register service with broker: {}", error);
-      }
-    });
-  }
 
   let parse_service = ParseServiceImpl::default();
   let server = Server::builder().add_service(ParseServiceServer::new(parse_service));

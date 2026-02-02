@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,18 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	brokerpb "aggregate-service-go/broker/v1"
 	pipelinepb "aggregate-service-go/pipeline/v1"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
-	defaultHost   = "127.0.0.1"
-	defaultPort   = 6004
-	defaultBroker = "127.0.0.1:50051"
-	defaultRole   = "default"
+	defaultHost = "127.0.0.1"
+	defaultPort = 6004
 )
 
 type aggregateStats struct {
@@ -246,30 +241,9 @@ func (s *aggregateServer) AggregateBatch(stream pipelinepb.AggregateService_Aggr
 	return nil
 }
 
-func registerWithBroker(ctx context.Context, host string, port int, brokerAddress string) error {
-	conn, err := grpc.DialContext(ctx, brokerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	client := brokerpb.NewBrokerServiceClient(conn)
-	_, err = client.RegisterService(ctx, &brokerpb.RegisterServiceRequest{
-		Info: &brokerpb.ServiceInfo{
-			InterfaceName: pipelinepb.AggregateService_ServiceDesc.ServiceName,
-			Role:          defaultRole,
-		},
-		Url:  host,
-		Port: int32(port),
-	})
-	return err
-}
-
 func main() {
 	host := flag.String("host", defaultHost, "Bind host")
 	port := flag.Int("port", defaultPort, "Bind port")
-	broker := flag.String("broker", defaultBroker, "Broker address")
-	noBroker := flag.Bool("no-broker", false, "Disable broker registration")
 	flag.Parse()
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *host, *port))
@@ -287,15 +261,6 @@ func main() {
 	}()
 
 	log.Printf("Aggregate service listening on %s:%d", *host, *port)
-
-	if !*noBroker {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := registerWithBroker(ctx, *host, *port, *broker); err != nil {
-			log.Printf("Failed to register with broker: %v", err)
-		}
-	}
 
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)

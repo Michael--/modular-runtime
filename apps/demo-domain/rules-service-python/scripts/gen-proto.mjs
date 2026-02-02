@@ -15,7 +15,6 @@ const args = [
   `--pyi_out=${outputDir}`,
   `--grpc_python_out=${outputDir}`,
   `${protoRoot}/pipeline/v1/pipeline.proto`,
-  `${protoRoot}/broker/v1/broker.proto`,
 ]
 
 const child = spawn('python3', args, { stdio: 'inherit' })

@@ -3,12 +3,10 @@ import * as grpc from '@grpc/grpc-js'
 import { createReadStream } from 'node:fs'
 import { once } from 'node:events'
 import { createInterface } from 'node:readline'
-import { BrokerClientManager } from '../../../../packages/broker/src'
 import { MetricsCollector } from '@modular-runtime/pipeline-common'
 import {
   GetStatusRequest,
   GetStatusResponse,
-  IngestServiceClient,
   IngestServiceServer,
   IngestServiceService,
   StreamEventsRequest,
@@ -21,18 +19,12 @@ import { generateWorkItem } from './workitem-generator'
 interface IngestConfig {
   host: string
   port: number
-  brokerHost: string
-  brokerPort: number
-  registerWithBroker: boolean
   defaultInputFile: string
 }
 
 const DEFAULT_CONFIG: IngestConfig = {
   host: '127.0.0.1',
   port: 6001,
-  brokerHost: '127.0.0.1',
-  brokerPort: 50051,
-  registerWithBroker: true,
   defaultInputFile: 'events.ndjson',
 }
 
@@ -42,9 +34,6 @@ Options:
   --host <host>          Bind host (default: ${DEFAULT_CONFIG.host})
   --port <port>          Bind port (default: ${DEFAULT_CONFIG.port})
   --input <file>         Default input file (default: ${DEFAULT_CONFIG.defaultInputFile})
-  --broker-host <host>   Broker host (default: ${DEFAULT_CONFIG.brokerHost})
-  --broker-port <port>   Broker port (default: ${DEFAULT_CONFIG.brokerPort})
-  --no-broker            Disable broker registration
   -h, --help             Show this help message
 `
 
@@ -82,23 +71,6 @@ const parseArgs = (argv: string[]): IngestConfig => {
     if (arg === '--input') {
       config.defaultInputFile = getValue(i + 1)
       i += 1
-      continue
-    }
-
-    if (arg === '--broker-host') {
-      config.brokerHost = getValue(i + 1)
-      i += 1
-      continue
-    }
-
-    if (arg === '--broker-port') {
-      config.brokerPort = Number(getValue(i + 1))
-      i += 1
-      continue
-    }
-
-    if (arg === '--no-broker') {
-      config.registerWithBroker = false
       continue
     }
 
@@ -289,13 +261,6 @@ const startIngestServer = async (config: IngestConfig): Promise<grpc.Server> => 
   })
 
   console.log(`Ingest service listening on ${config.host}:${config.port}`)
-
-  if (config.registerWithBroker) {
-    const brokerManager = BrokerClientManager.create(config.brokerHost, config.brokerPort)
-    brokerManager.onConnected = () => {
-      brokerManager.registerService(IngestServiceClient, config.host, config.port)
-    }
-  }
 
   return server
 }

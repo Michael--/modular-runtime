@@ -2,10 +2,8 @@
 import * as grpc from '@grpc/grpc-js'
 import { createWriteStream } from 'node:fs'
 import { once } from 'node:events'
-import { BrokerClientManager } from '../../../../packages/broker/src'
 import { MetricsCollector } from '@modular-runtime/pipeline-common'
 import {
-  SinkServiceClient,
   SinkServiceServer,
   SinkServiceService,
   WriteResultsRequest,
@@ -15,18 +13,12 @@ import {
 interface SinkConfig {
   host: string
   port: number
-  brokerHost: string
-  brokerPort: number
-  registerWithBroker: boolean
   outputFile: string
 }
 
 const DEFAULT_CONFIG: SinkConfig = {
   host: '127.0.0.1',
   port: 6005,
-  brokerHost: '127.0.0.1',
-  brokerPort: 50051,
-  registerWithBroker: true,
   outputFile: 'aggregate-results.ndjson',
 }
 
@@ -36,9 +28,6 @@ Options:
   --host <host>          Bind host (default: ${DEFAULT_CONFIG.host})
   --port <port>          Bind port (default: ${DEFAULT_CONFIG.port})
   --output <file>        Output NDJSON file (default: ${DEFAULT_CONFIG.outputFile})
-  --broker-host <host>   Broker host (default: ${DEFAULT_CONFIG.brokerHost})
-  --broker-port <port>   Broker port (default: ${DEFAULT_CONFIG.brokerPort})
-  --no-broker            Disable broker registration
   -h, --help             Show this help message
 `
 
@@ -76,23 +65,6 @@ const parseArgs = (argv: string[]): SinkConfig => {
     if (arg === '--output') {
       config.outputFile = getValue(i + 1)
       i += 1
-      continue
-    }
-
-    if (arg === '--broker-host') {
-      config.brokerHost = getValue(i + 1)
-      i += 1
-      continue
-    }
-
-    if (arg === '--broker-port') {
-      config.brokerPort = Number(getValue(i + 1))
-      i += 1
-      continue
-    }
-
-    if (arg === '--no-broker') {
-      config.registerWithBroker = false
       continue
     }
 
@@ -183,13 +155,6 @@ const startSinkServer = async (config: SinkConfig): Promise<grpc.Server> => {
   })
 
   console.log(`Sink service listening on ${config.host}:${config.port}`)
-
-  if (config.registerWithBroker) {
-    const brokerManager = BrokerClientManager.create(config.brokerHost, config.brokerPort)
-    brokerManager.onConnected = () => {
-      brokerManager.registerService(SinkServiceClient, config.host, config.port)
-    }
-  }
 
   return server
 }

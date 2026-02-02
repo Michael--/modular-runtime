@@ -1,11 +1,9 @@
 /* eslint-disable no-console */
 import * as grpc from '@grpc/grpc-js'
-import { BrokerClientManager } from '../../../../packages/broker/src'
 import {
   AggregateRequest,
   AggregateResponse,
   AggregateBatchRequest,
-  AggregateServiceClient,
   AggregateServiceServer,
   AggregateServiceService,
 } from '../../../../packages/proto/generated/ts/pipeline/v1/pipeline'
@@ -15,17 +13,11 @@ import { processEnrichedWorkItem } from './workitem-processor'
 interface AggregateConfig {
   host: string
   port: number
-  brokerHost: string
-  brokerPort: number
-  registerWithBroker: boolean
 }
 
 const DEFAULT_CONFIG: AggregateConfig = {
   host: '127.0.0.1',
   port: 6004,
-  brokerHost: '127.0.0.1',
-  brokerPort: 50051,
-  registerWithBroker: true,
 }
 
 const usage = `Usage: aggregate-service [options]
@@ -33,9 +25,6 @@ const usage = `Usage: aggregate-service [options]
 Options:
   --host <host>          Bind host (default: ${DEFAULT_CONFIG.host})
   --port <port>          Bind port (default: ${DEFAULT_CONFIG.port})
-  --broker-host <host>   Broker host (default: ${DEFAULT_CONFIG.brokerHost})
-  --broker-port <port>   Broker port (default: ${DEFAULT_CONFIG.brokerPort})
-  --no-broker            Disable broker registration
   -h, --help             Show this help message
 `
 
@@ -67,23 +56,6 @@ const parseArgs = (argv: string[]): AggregateConfig => {
     if (arg === '--port') {
       config.port = Number(getValue(i + 1))
       i += 1
-      continue
-    }
-
-    if (arg === '--broker-host') {
-      config.brokerHost = getValue(i + 1)
-      i += 1
-      continue
-    }
-
-    if (arg === '--broker-port') {
-      config.brokerPort = Number(getValue(i + 1))
-      i += 1
-      continue
-    }
-
-    if (arg === '--no-broker') {
-      config.registerWithBroker = false
       continue
     }
 
@@ -205,13 +177,6 @@ const startAggregateServer = async (config: AggregateConfig): Promise<grpc.Serve
   })
 
   console.log(`Aggregate service listening on ${config.host}:${config.port}`)
-
-  if (config.registerWithBroker) {
-    const brokerManager = BrokerClientManager.create(config.brokerHost, config.brokerPort)
-    brokerManager.onConnected = () => {
-      brokerManager.registerService(AggregateServiceClient, config.host, config.port)
-    }
-  }
 
   return server
 }
