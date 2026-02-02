@@ -78,8 +78,8 @@ fn transpose_matrix(matrix: &Matrix) -> Matrix {
     let mut transposed = vec![];
     for col in 0..num_cols {
         let mut new_row = vec![];
-        for row in 0..num_rows {
-            new_row.push(rows[row].values.get(col).copied().unwrap_or(0.0));
+        for row in rows.iter().take(num_rows) {
+            new_row.push(row.values.get(col).copied().unwrap_or(0.0));
         }
         transposed.push(Vector { values: new_row });
     }

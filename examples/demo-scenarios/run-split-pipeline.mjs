@@ -296,7 +296,12 @@ const resolveServiceCommands = (config) => {
     return {
       parse: {
         command: 'cargo',
-        args: ['run', '--manifest-path', 'apps/demo-domain/parse-service-rust/Cargo.toml'],
+        args: [
+          'run',
+          '--release',
+          '--manifest-path',
+          'apps/demo-domain/parse-service-rust/Cargo.toml',
+        ],
       },
       rules: {
         command: 'python3',

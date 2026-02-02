@@ -59,14 +59,29 @@ Key points:
 | ---------- | ------------- | ------------------- | ----- | ----------- |
 | 1 (none)   | 24,700/s      | 21,137/s            | 0.86x | identical   |
 | 50         | 75,700/s      | 72,150/s            | 0.95x | identical   |
-| 100        | 77,042/s      | 76,161/s            | 0.99x | identical   |
+| 100        | 77,042/s      | 79,681/s            | 1.03x | identical   |
 
 Key points:
 
 - Polyglot produces identical aggregation results: purchase count=30288, sum=1656819, avg=54.70; click count=30387, sum=1672013, avg=55.02.
-- With batching enabled (size≥50), polyglot performance matches TypeScript within 1-5%.
-- Without batching, polyglot is ~14% slower than TypeScript due to higher IPC overhead in Rust parse service.
-- Language choice has minimal impact when batching is enabled.
+- With batching enabled and release builds, **Rust parse service outperforms TypeScript** (1.03x at batch=100).
+- Without batching, polyglot is ~14% slower due to higher IPC overhead.
+- Language choice has minimal impact when batching is enabled; with optimizations, Rust can exceed Node.js performance.
+
+### Rust optimization impact
+
+| Workload         | Before (debug) | After (release+optimized) | Improvement |
+| ---------------- | -------------- | ------------------------- | ----------- |
+| Events (100k)    | 76,161/s       | 79,681/s                  | 1.05x       |
+| Work-items (10k) | 2,725/s        | 7,716/s                   | 2.83x       |
+| Parse time (10k) | 3351ms         | 238ms                     | 14.1x       |
+
+Optimizations applied:
+
+- Eliminated double JSON parsing (parse as Value then deserialize with clone)
+- Direct deserialization attempt for WorkItem before fallback
+- Release build enabled (--release flag)
+- Removed unnecessary `.clone()` on parsed JSON
 
 ### Per-service metrics (100k events, batch_size=100)
 

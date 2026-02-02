@@ -199,23 +199,22 @@ fn parse_event(event: &Event) -> Option<ParsedEvent> {
     return None;
   }
 
+  // Try to parse as WorkItem first (single parse attempt)
+  if let Ok(work_item) = serde_json::from_str::<WorkItem>(&event.raw_json) {
+    let processed = process_work_item(&work_item);
+    let processed_json = serde_json::to_string(&processed).ok()?;
+    return Some(ParsedEvent {
+      r#type: String::from("work-item"),
+      user: processed_json,
+      value: 0,
+      timestamp: chrono::Utc::now().timestamp_millis(),
+      sequence: event.sequence,
+    });
+  }
+
+  // Fall back to normal event parsing
   let parsed: Value = serde_json::from_str(&event.raw_json).ok()?;
   let object = parsed.as_object()?;
-
-  // Check if this is a WorkItem
-  if object.contains_key("id") && object.contains_key("vectors") && object.contains_key("matrix") {
-    if let Ok(work_item) = serde_json::from_value::<WorkItem>(parsed.clone()) {
-      let processed = process_work_item(&work_item);
-      let processed_json = serde_json::to_string(&processed).ok()?;
-      return Some(ParsedEvent {
-        r#type: String::from("work-item"),
-        user: processed_json, // Store processed WorkItem JSON in user field (hack for demo)
-        value: 0,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        sequence: event.sequence,
-      });
-    }
-  }
 
   // Normal event parsing
   let ts = object.get("ts")?.as_str()?;
@@ -283,7 +282,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
   let config = parse_args()?;
   let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
 
-  let parse_service = ParseServiceImpl::default();
+  let parse_service = ParseServiceImpl;
   let server = Server::builder().add_service(ParseServiceServer::new(parse_service));
 
   println!("Parse service listening on {}", addr);
