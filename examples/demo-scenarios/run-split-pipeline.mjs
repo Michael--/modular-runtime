@@ -61,7 +61,7 @@ const defaultConfig = {
   workload: 'events',
   payloadSize: 'medium',
   iterations: 500,
-  implementation: 'polyglot', // ts | polyglot
+  implementation: 'ts', // ts | polyglot
 }
 
 const usage = `Usage: run-split-pipeline.mjs [options]
@@ -238,10 +238,10 @@ const streamLines = (stream, onLine) => {
   })
 }
 
-const startService = (name, command, args, env = {}) => {
+const startService = (name, command, args, env = {}, options = {}) => {
   logRunner(`→ Starting ${name}...`)
   const child = spawn(command, args, {
-    cwd: repoRoot,
+    cwd: options.cwd ?? repoRoot,
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
@@ -295,17 +295,19 @@ const resolveServiceCommands = (config) => {
   if (config.implementation === 'polyglot') {
     return {
       parse: {
-        command: 'pnpm',
-        args: ['-C', 'apps/demo-domain/parse-service-rust', 'start'],
+        command: 'cargo',
+        args: ['run', '--manifest-path', 'apps/demo-domain/parse-service-rust/Cargo.toml'],
       },
       rules: {
-        command: 'pnpm',
-        args: ['-C', 'apps/demo-domain/rules-service-python', 'start'],
+        command: 'python3',
+        args: ['src/rules_service.py'],
+        cwd: 'apps/demo-domain/rules-service-python',
         env: { PYTHONUNBUFFERED: '1' },
       },
       aggregate: {
-        command: 'pnpm',
-        args: ['-C', 'apps/demo-domain/aggregate-service-go', 'start'],
+        command: 'go',
+        args: ['run', '.'],
+        cwd: 'apps/demo-domain/aggregate-service-go',
       },
     }
   }
@@ -427,7 +429,8 @@ const main = async () => {
       'parse',
       serviceCommands.parse.command,
       serviceCommands.parse.args,
-      serviceCommands.parse.env ?? {}
+      serviceCommands.parse.env ?? {},
+      { cwd: serviceCommands.parse.cwd }
     )
     services.push(parse.child)
     await sleep(1000)
@@ -436,7 +439,8 @@ const main = async () => {
       'rules',
       serviceCommands.rules.command,
       serviceCommands.rules.args,
-      serviceCommands.rules.env ?? {}
+      serviceCommands.rules.env ?? {},
+      { cwd: serviceCommands.rules.cwd }
     )
     services.push(rules.child)
     await sleep(1000)
@@ -445,7 +449,8 @@ const main = async () => {
       'aggregate',
       serviceCommands.aggregate.command,
       serviceCommands.aggregate.args,
-      serviceCommands.aggregate.env ?? {}
+      serviceCommands.aggregate.env ?? {},
+      { cwd: serviceCommands.aggregate.cwd }
     )
     services.push(aggregate.child)
     await sleep(1000)
