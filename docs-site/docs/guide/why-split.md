@@ -11,3 +11,16 @@ Key motivations:
 - Local-first: multiple processes on a single machine, still dynamic and observable.
 
 The goal is not cloud-native microservices. It is a pragmatic way to decompose a local system while keeping performance competitive.
+
+## Migration Path from a Legacy C++ Monolith
+
+Splitting is not just about picking between two greenfield approaches. It provides a path away from a historical, oversized C++ monolith without losing performance or control.
+
+Practical reasons this matters:
+
+- Step-by-step extraction: carve out one stage at a time and keep the rest of the system intact.
+- Coexistence: C++ can remain for hot paths while new services evolve in safer or faster-to-iterate languages.
+- Risk reduction: smaller services are easier to test, deploy, and roll back.
+- Confidence building: measured results show the split pipeline can match or exceed monolith throughput when batching is enabled.
+
+This is a modernization strategy, not a replacement story. It reduces fear of losing C++ performance while enabling a gradual transition to a more maintainable architecture.
