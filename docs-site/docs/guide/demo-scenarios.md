@@ -2,6 +2,16 @@
 
 The demo scenarios compare a C++ monolith pipeline to a split service pipeline.
 
+::: info What You'll Measure
+
+- **Throughput:** events or work-items processed per second
+- **IPC overhead:** time spent in inter-process communication vs actual processing
+- **Batching impact:** how grouping events into batches affects performance
+- **Language comparison:** TypeScript vs Rust/Python/Go (polyglot mode)
+
+See [Results Summary](/guide/results) for measured data and [Performance Deep Dive](/guide/performance) for explanations.
+:::
+
 ## Quick Runs
 
 Monolith:

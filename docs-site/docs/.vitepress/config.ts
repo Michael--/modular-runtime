@@ -28,6 +28,7 @@ const config = withMermaid(
       nav: [
         { text: 'Guide', link: '/guide/overview' },
         { text: 'Demo Scenarios', link: '/guide/demo-scenarios' },
+        { text: 'Performance', link: '/guide/performance' },
         { text: 'Results', link: '/guide/results' },
       ],
       sidebar: {
@@ -39,8 +40,15 @@ const config = withMermaid(
               { text: 'Why Split', link: '/guide/why-split' },
               { text: 'Architecture', link: '/guide/architecture' },
               { text: 'Workspaces', link: '/guide/workspaces' },
+            ],
+          },
+          {
+            text: 'Demo & Results',
+            items: [
               { text: 'Demo Scenarios', link: '/guide/demo-scenarios' },
-              { text: 'Results', link: '/guide/results' },
+              { text: 'Results Summary', link: '/guide/results' },
+              { text: 'Performance Deep Dive', link: '/guide/performance' },
+              { text: 'Rust Optimization', link: '/guide/rust-optimization' },
             ],
           },
         ],
