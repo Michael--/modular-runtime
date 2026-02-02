@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         match calculator.calculate(request).await {
           Ok(response) => {
             let result = response.into_inner().result;
-            println!("calculate({} {} {}) => {}", a, operation_symbol(op), b, result);
+            println!("calculate({:.6} {} {:.6}) => {:.6}", a, operation_symbol(op), b, result);
           }
           Err(error) => {
             eprintln!("Calculation failed: {}", error.message());

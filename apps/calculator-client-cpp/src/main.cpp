@@ -2,6 +2,7 @@
 #include <csignal>
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -190,6 +191,8 @@ int main(int argc, char *argv[])
 {
   std::signal(SIGINT, HandleSignal);
   std::signal(SIGTERM, HandleSignal);
+
+  std::cout << std::fixed << std::setprecision(6);
 
   std::cout << "Starting C++ calculator client..." << std::endl;
 

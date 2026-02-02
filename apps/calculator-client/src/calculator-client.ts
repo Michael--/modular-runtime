@@ -59,7 +59,7 @@ async function someTestCalculations() {
             }
           }
           console.log(
-            `calculate(${request.operand1} ${operationSymbol(request.operation)} ${request.operand2}) => ${response.result}`
+            `calculate(${request.operand1.toFixed(6)} ${operationSymbol(request.operation)} ${request.operand2.toFixed(6)}) => ${response.result.toFixed(6)}`
           )
           resolve(response.result)
         }
@@ -67,7 +67,7 @@ async function someTestCalculations() {
     })
   }
 
-  const value = () => Math.round(Math.random() * 10)
+  const value = () => Math.random() * 10
   const operation = () => (Math.floor(Math.random() * 4) + 1) as Operation
   try {
     await calculator(value(), value(), operation())
