@@ -10,16 +10,19 @@ Numbers come from repeated demo runs and were cleaned up for readability.
 - Users: 10,000
 - Seed: 42
 - Hardware: macOS (M-series or Intel)
-- Split pipeline (demo scripts): TypeScript/Node.js services only
+- Split pipeline implementations:
+  - TypeScript/Node.js (all services)
+  - Polyglot: Rust (parse), Python (rules), Go (aggregate), TypeScript (ingest/sink)
 - Monolith: C++ only
 
 ## Summary
 
-- Correctness: monolith and split outputs match for event workloads.
+- Correctness: monolith and split outputs match for event workloads; polyglot implementation produces identical results.
 - Events (100k): split without batching is ~0.56-0.57x monolith throughput; with end-to-end batching (50-100) it is ~1.7-1.75x faster.
 - Optimal batch size for events: 50-100.
+- Polyglot implementation: matches TypeScript performance for events workload with batching (~99%); produces identical aggregation results.
 - Work-items (CPU-bound): processing dominates (87-92%); throughput is stable at ~10-12k items/s; batching impact is minimal.
-- All split measurements are based on the TypeScript/Node.js services used by the demo scripts.
+- Primary measurements use TypeScript/Node.js services; polyglot measurements indicate language choice has minimal impact for events workload with batching.
 
 ## Events Workload (100k)
 
@@ -49,6 +52,21 @@ Key points:
 - End-to-end batching reduces gRPC call count by ~100x at batch_size=100.
 - Throughput improves ~3x vs baseline and exceeds monolith at 50-100.
 - IPC still dominates overall time, but batching amortizes it effectively.
+
+### Polyglot implementation comparison (100k events)
+
+| Batch Size | TS Throughput | Polyglot Throughput | Ratio | Correctness |
+| ---------- | ------------- | ------------------- | ----- | ----------- |
+| 1 (none)   | 24,700/s      | 21,137/s            | 0.86x | identical   |
+| 50         | 75,700/s      | 72,150/s            | 0.95x | identical   |
+| 100        | 77,042/s      | 76,161/s            | 0.99x | identical   |
+
+Key points:
+
+- Polyglot produces identical aggregation results: purchase count=30288, sum=1656819, avg=54.70; click count=30387, sum=1672013, avg=55.02.
+- With batching enabled (size≥50), polyglot performance matches TypeScript within 1-5%.
+- Without batching, polyglot is ~14% slower than TypeScript due to higher IPC overhead in Rust parse service.
+- Language choice has minimal impact when batching is enabled.
 
 ### Per-service metrics (100k events, batch_size=100)
 

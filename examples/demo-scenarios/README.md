@@ -24,8 +24,10 @@ Defined in the repo root `package.json`:
 - `pnpm demo:monolith` → `examples/demo-scenarios/run-monolith.mjs`
 - `pnpm demo:split` → `examples/demo-scenarios/run-split-pipeline.mjs`
 - `pnpm demo:split:baseline` → split pipeline, batching disabled, reuses artifacts
-- `pnpm demo:split:batch10|batch50|batch100|batch1000` → batching presets
-- `pnpm demo:split:full` → split pipeline with batching enabled
+- `pnpm demo:split:batch10|batch50|batch100|batch1000` → batching presets (TypeScript)
+- `pnpm demo:split:full` → split pipeline with batching enabled (TypeScript)
+- `pnpm demo:split:polyglot` → polyglot implementation with batching (Rust/Python/Go)
+- `pnpm demo:split:polyglot:baseline|batch50|batch100` → polyglot batching presets
 - `pnpm demo:workload:10000|50000|100000` → work-items workload presets
 
 ## Monolith Script
