@@ -1,0 +1,6 @@
+/* Prevent VitePress typography from messing with Mermaid SVG measurements */
+
+.vp-doc .mermaid foreignObject,
+.vp-doc .mermaid foreignObject * {
+   line-height: 1.5;
+}
