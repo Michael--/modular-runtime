@@ -12,11 +12,33 @@ import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js'
 import { BrokerClientManager } from '../../../packages/broker/src/BrokerClientManager'
 import { NotifyServiceChangesResponse } from '../../../packages/proto/generated/ts/broker/v1/broker'
 
+const parseArgs = () => {
+  const args = process.argv.slice(2)
+  let address = '127.0.0.1:5555'
+  let brokerAddress = '127.0.0.1:50051'
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--address' && i + 1 < args.length) {
+      address = args[i + 1]
+      i++
+    } else if (args[i] === '--broker-address' && i + 1 < args.length) {
+      brokerAddress = args[i + 1]
+      i++
+    }
+  }
+  const [url, portStr] = address.split(':')
+  const port = parseInt(portStr, 10)
+  const [brokerUrl, brokerPortStr] = brokerAddress.split(':')
+  const brokerPort = parseInt(brokerPortStr, 10)
+  return { url, port, brokerUrl, brokerPort }
+}
+
+const { url, port, brokerUrl, brokerPort } = parseArgs()
+
 let brokerManager: BrokerClientManager | null = null
 
 function brokerManagerInstance() {
   console.log('Lookup calculator service')
-  brokerManager = BrokerClientManager.create('127.0.0.1', 50051)
+  brokerManager = BrokerClientManager.create(brokerUrl, brokerPort)
 
   brokerManager.onChanges = (changes: NotifyServiceChangesResponse) => {
     console.log('notifyServiceChanges:', changes)
@@ -25,8 +47,6 @@ function brokerManagerInstance() {
   brokerManager.onConnected = async () => {
     console.log('Broker connected')
 
-    const url = '127.0.0.1'
-    const port = 5555
     brokerManager?.registerService(CalculatorServiceClient, url, port)
     // prepareClient();
   }
@@ -71,8 +91,6 @@ async function startServer() {
   const server = new grpc.Server(serverOptions)
   server.addService(CalculatorServiceService, calculatorService)
 
-  const url = '127.0.0.1'
-  const port = 5555
   const address = `${url}:${port}`
   server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err) => {
     if (err) {
@@ -105,10 +123,6 @@ async function main() {
   console.log('Starting calculator server...')
   brokerManagerInstance()
   startServer()
-
-  setInterval(() => {
-    // someTestCalculations();
-  }, 2000)
 }
 
 main().catch(console.error)

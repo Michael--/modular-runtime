@@ -3,6 +3,8 @@ services:
     command: node
     args:
       - packages/broker/dist/cli.js
+      - --address
+      - 127.0.0.1:50051
     cwd: ../..
     env: {}
     restart: always
@@ -14,6 +16,10 @@ services:
     command: node
     args:
       - apps/calculator-server/dist/calculator-server.js
+      - --address
+      - 127.0.0.1:5555
+      - --broker-address
+      - 127.0.0.1:50051
     cwd: ../..
     env: {}
     restart: always
@@ -25,6 +31,8 @@ services:
     command: node
     args:
       - apps/calculator-client/dist/calculator-client.js
+      - --broker-address
+      - 127.0.0.1:50051
     cwd: ../..
     env: {}
     restart: always

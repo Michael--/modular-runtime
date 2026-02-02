@@ -7,6 +7,22 @@ import {
 } from '../../../packages/proto/generated/ts/calculator/v1/calculator'
 import { credentials } from '@grpc/grpc-js'
 
+const parseArgs = () => {
+  const args = process.argv.slice(2)
+  let brokerAddress = '127.0.0.1:50051'
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--broker-address' && i + 1 < args.length) {
+      brokerAddress = args[i + 1]
+      i++
+    }
+  }
+  const [brokerUrl, brokerPortStr] = brokerAddress.split(':')
+  const brokerPort = parseInt(brokerPortStr, 10)
+  return { brokerUrl, brokerPort }
+}
+
+const { brokerUrl, brokerPort } = parseArgs()
+
 let brokerManager: BrokerClientManager | null = null
 let calculatorClient: CalculatorServiceClient | null = null
 
@@ -73,7 +89,7 @@ async function prepareClient() {
 
 function brokerManagerInstance() {
   console.log('Lookup calculator service')
-  brokerManager = BrokerClientManager.create('127.0.0.1', 50051)
+  brokerManager = BrokerClientManager.create(brokerUrl, brokerPort)
 
   brokerManager.onChanges = (changes) => {
     console.log('notifyServiceChanges:', changes)

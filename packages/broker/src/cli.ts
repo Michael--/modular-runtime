@@ -1,7 +1,19 @@
 /* eslint-disable no-console */
 import { startBrokerServer } from './broker'
 
-const address = process.env.BROKER_ADDRESS ?? '127.0.0.1:50051'
+const parseArgs = () => {
+  const args = process.argv.slice(2)
+  let address = process.env.BROKER_ADDRESS ?? '127.0.0.1:50051'
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--address' && i + 1 < args.length) {
+      address = args[i + 1]
+      i++
+    }
+  }
+  return { address }
+}
+
+const { address } = parseArgs()
 
 const main = async (): Promise<void> => {
   const server = await startBrokerServer(address)
