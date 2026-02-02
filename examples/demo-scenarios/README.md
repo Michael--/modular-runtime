@@ -74,6 +74,7 @@ Notable flags:
 - `--input` / `--output`
 
 The split script builds and starts the services plus the pipeline orchestrator by default.
+The demo script uses the TypeScript/Node.js service implementations; polyglot variants are not used here.
 All stdout/stderr is prefixed by origin (runner, generator, orchestrator, services); multiline output is split into prefixed lines.
 
 ## Output Files

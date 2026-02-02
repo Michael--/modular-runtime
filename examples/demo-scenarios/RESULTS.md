@@ -10,7 +10,8 @@ Numbers come from repeated demo runs and were cleaned up for readability.
 - Users: 10,000
 - Seed: 42
 - Hardware: macOS (M-series or Intel)
-- Split pipeline: TypeScript -> Rust -> Python -> Go -> TypeScript
+- Split pipeline (demo scripts): TypeScript/Node.js services only
+- Monolith: C++ only
 
 ## Summary
 
@@ -18,6 +19,7 @@ Numbers come from repeated demo runs and were cleaned up for readability.
 - Events (100k): split without batching is ~0.56-0.57x monolith throughput; with end-to-end batching (50-100) it is ~1.7-1.75x faster.
 - Optimal batch size for events: 50-100.
 - Work-items (CPU-bound): processing dominates (87-92%); throughput is stable at ~10-12k items/s; batching impact is minimal.
+- All split measurements are based on the TypeScript/Node.js services used by the demo scripts.
 
 ## Events Workload (100k)
 
@@ -51,9 +53,9 @@ Key points:
 ### Per-service metrics (100k events, batch_size=100)
 
 - Ingest (TS): 10.2% processing, 89.8% IPC send
-- Parse (Rust): ~5% processing, ~94% IPC recv
-- Rules (Python): ~70% processing, ~18% IPC send, ~12% IPC recv
-- Aggregate (Go): ~0.1% processing, ~99.5% IPC recv
+- Parse (TS): ~5% processing, ~94% IPC recv
+- Rules (TS): ~70% processing, ~18% IPC send, ~12% IPC recv
+- Aggregate (TS): ~0.1% processing, ~99.5% IPC recv
 - Sink (TS): 7.4% processing, 89.8% IPC send
 
 ## Work-items Workload (CPU-bound)
