@@ -37,9 +37,9 @@ graph LR
     B --> C[Split batch=50<br/>75,700/s<br/>1.72x]
     C --> D[Split batch=100<br/>77,042/s<br/>1.75x]
 
-    style A fill:#90EE90
-    style B fill:#ff6b6b
-    style D fill:#4CAF50,stroke:#333,stroke-width:3px
+    style A stroke:#00cc00,stroke-width:3px
+    style B stroke:#cc0000,stroke-width:3px
+    style D stroke:#0066cc,stroke-width:4px
 ```
 
 End-to-end batching:
@@ -69,7 +69,7 @@ graph TB
     A -->|batch=100| C[77,042/s]
     B -->|batch=100| D[79,681/s<br/>+3% faster]
 
-    style D fill:#90EE90,stroke:#333,stroke-width:3px
+    style D stroke:#00cc00,stroke-width:4px
 ```
 
 ::: tip Rust Optimization Success

@@ -159,8 +159,8 @@ graph LR
     B --> C[Rust release: 78,927/s<br/>1.02x]
     C --> D[Rust optimized: 79,681/s<br/>1.03x]
 
-    style A fill:#61dafb
-    style D fill:#90EE90,stroke:#333,stroke-width:3px
+    style A stroke:#0066cc,stroke-width:3px
+    style D stroke:#00cc00,stroke-width:4px
 ```
 
 **Final result:** Rust **3% faster** than TypeScript for events.
@@ -175,9 +175,9 @@ graph TB
 
     B -->|14x parse time| C
 
-    style A fill:#61dafb
-    style B fill:#ff6b6b
-    style C fill:#ffd93d
+    style A stroke:#0066cc,stroke-width:3px
+    style B stroke:#cc0000,stroke-width:3px
+    style C stroke:#ff9900,stroke-width:3px
 ```
 
 **Parse time improvement:** 3,351ms → 238ms (**14.1x faster**)

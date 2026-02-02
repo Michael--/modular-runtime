@@ -2,56 +2,76 @@
 
 At a high level, the runtime consists of a supervisor that starts processes and a broker that connects them. Services communicate via gRPC and protobuf contracts.
 
-## Core Components
+## Two Different Architectures
+
+The repository demonstrates two separate approaches:
+
+### 1. Calculator Example (with Supervisor/Broker)
 
 ```mermaid
 graph TB
-    subgraph "Runtime Infrastructure"
-        SUP[Supervisor<br/>Process Manager]
-        BRK[Broker<br/>Service Registry]
-    end
+    SUP[Supervisor<br/>Process Manager]
+    BRK[Broker<br/>Service Registry]
+    CALC_S[Calculator Server]
+    CALC_C1[Calculator Client<br/>typescript, Rust, C++]
 
-    subgraph "Pipeline Services"
-        ING[Ingest]
-        PRS[Parse]
-        RUL[Rules]
-        AGG[Aggregate]
-        SNK[Sink]
-    end
+    SUP -->|starts| BRK
+    SUP -->|starts| CALC_S
+    SUP -->|starts| CALC_C1
 
+    CALC_S -.->|registers| BRK
+    CALC_C1 -.->|discovers| BRK
+    CALC_C1 -->|gRPC calls| CALC_S
+
+    style SUP stroke:#0066cc,stroke-width:3px
+    style BRK stroke:#ff9900,stroke-width:3px
+```
+
+**Components:**
+
+- **Supervisor:** launches and manages processes from `config.yaml`
+- **Broker:** service registry for discovery
+- **Services:** register with broker, discover each other dynamically
+
+### 2. Demo Pipeline (without Supervisor/Broker)
+
+```mermaid
+flowchart LR
     ORC[Orchestrator<br/>Demo Runner]
+    ING[Ingest]
+    PRS[Parse]
+    RUL[Rules]
+    AGG[Aggregate]
+    SNK[Sink]
 
-    SUP -->|starts| ING
-    SUP -->|starts| PRS
-    SUP -->|starts| RUL
-    SUP -->|starts| AGG
-    SUP -->|starts| SNK
+    ORC -->|starts manually| ING
+    ORC -->|starts manually| PRS
+    ORC -->|starts manually| RUL
+    ORC -->|starts manually| AGG
+    ORC -->|starts manually| SNK
 
-    ING -.->|registers| BRK
-    PRS -.->|registers| BRK
-    RUL -.->|registers| BRK
-    AGG -.->|registers| BRK
-    SNK -.->|registers| BRK
-
-    ORC -->|discovers| BRK
     ORC -->|gRPC| ING
     ING -->|gRPC| PRS
     PRS -->|gRPC| RUL
     RUL -->|gRPC| AGG
     AGG -->|gRPC| SNK
 
-    style SUP fill:#e1f5ff
-    style BRK fill:#fff4e1
-    style ORC fill:#ffe1f5
+    style ORC stroke:#9933cc,stroke-width:3px
 ```
 
 **Components:**
 
-- **Supervisor:** launches and supervises processes using a config file
-- **Broker / Registry:** service discovery, lookups, and change notifications
-- **Services:** small, single-purpose processes (ingest, parse, rules, aggregate, sink)
-- **Orchestrator:** coordinates end-to-end runs for demo scenarios
-- **Bridges (optional):** interceptors for logging, tracing, or policy enforcement
+- **Orchestrator:** demo script that starts services and coordinates the pipeline
+- **Services:** hardcoded ports, no service discovery
+- **No Supervisor/Broker:** services are started by the demo script directly
+
+::: info Why Two Approaches?
+
+- **Calculator example** demonstrates the supervisor/broker pattern for dynamic service management
+- **Demo pipeline** focuses on performance measurements without the overhead of service discovery
+
+The demo pipeline scripts (`run-split-pipeline.mjs`) spawn services as child processes with fixed ports.
+:::
 
 ## Supervisor Scope and Limitations
 
@@ -74,11 +94,11 @@ flowchart LR
     C -->|gRPC stream| D[Aggregate<br/>Compute Stats]
     D -->|gRPC stream| E[Sink<br/>Write Results]
 
-    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
-    style B fill:#fff4e1,stroke:#333,stroke-width:2px
-    style C fill:#ffe1f5,stroke:#333,stroke-width:2px
-    style D fill:#e1ffe8,stroke:#333,stroke-width:2px
-    style E fill:#f5e1ff,stroke:#333,stroke-width:2px
+    style A stroke:#0066cc,stroke-width:3px
+    style B stroke:#ff9900,stroke-width:3px
+    style C stroke:#cc0066,stroke-width:3px
+    style D stroke:#00cc66,stroke-width:3px
+    style E stroke:#9933cc,stroke-width:3px
 ```
 
 **Stage responsibilities:**

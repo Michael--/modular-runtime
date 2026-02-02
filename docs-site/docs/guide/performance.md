@@ -13,11 +13,11 @@ flowchart LR
     C -->|gRPC stream| D[Aggregate]
     D -->|gRPC stream| E[Sink]
 
-    style A fill:#e1f5ff
-    style B fill:#fff4e1
-    style C fill:#ffe1f5
-    style D fill:#e1ffe8
-    style E fill:#f5e1ff
+    style A stroke:#0066cc,stroke-width:3px
+    style B stroke:#ff9900,stroke-width:3px
+    style C stroke:#cc0066,stroke-width:3px
+    style D stroke:#00cc66,stroke-width:3px
+    style E stroke:#9933cc,stroke-width:3px
 ```
 
 Each arrow represents a gRPC streaming connection. Without batching, every event triggers a separate gRPC call with full serialization, network stack traversal, and deserialization overhead.
@@ -80,7 +80,7 @@ graph LR
     C -->|1.02x| D[batch=100<br/>77k/s]
     D -->|0.95x| E[batch=1000<br/>73k/s]
 
-    style D fill:#90EE90,stroke:#333,stroke-width:3px
+    style D stroke:#00cc00,stroke-width:4px
 ```
 
 ## Per-Service Breakdown
