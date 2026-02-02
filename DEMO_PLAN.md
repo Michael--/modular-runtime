@@ -27,18 +27,23 @@ Eine **anschauliche Demo-Umgebung**, die zeigt wie ein polyglot Service-Runtime 
 ┌─────────────────────────────────────────────────────┐
 │                   Supervisor UI                     │
 │              (Electron oder Web-basiert)            │
+│   - Live Topology Graph  - Health Dashboard         │
+│   - Log Stream           - Load Testing Controls    │
 └─────────────────────────────────────────────────────┘
                           │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-    ┌───▼───┐      ┌──────▼──────┐    ┌────▼────┐
-    │Broker │      │Health Service│   │Logger   │
-    └───┬───┘      └──────┬──────┘    │Service  │
-        │                 │            └────┬────┘
-        │                 │                 │
-    ┌───▼──────────────────▼─────────────────▼────┐
-    │         Application Services                │
-    │  (Calculator, Pipeline, Custom Services)    │
+        ┌─────────────────┼─────────────────┬─────────────┐
+        │                 │                 │             │
+    ┌───▼───┐      ┌──────▼──────┐    ┌────▼────┐  ┌─────▼─────┐
+    │Broker │      │Health Service│   │Logger   │  │ Topology  │
+    └───┬───┘      └──────┬──────┘    │Service  │  │  Service  │
+        │                 │            └────┬────┘  └─────┬─────┘
+        │                 │                 │             │
+        │                 │         ┌───────┴─────────────┘
+        │                 │         │ (tracks connections)
+    ┌───▼──────────────────▼─────────▼──────────────┐
+    │         Application Services                  │
+    │  (Calculator, Pipeline, Custom Services)      │
+    │    with gRPC Interceptors for auto-tracking   │
     └──────────────────────────────────────────────┘
         ▲                 ▲
         │                 │
@@ -51,7 +56,179 @@ Eine **anschauliche Demo-Umgebung**, die zeigt wie ein polyglot Service-Runtime 
 
 ## Phase 1: Foundation Services (Prio 1)
 
-**Ziel**: Basis-Infrastruktur für Observability
+**Ziel**: Basis-Infrastruktur für Observability & Topology Tracking
+
+### 1.0 Topology Service ⭐⭐⭐⭐⭐ **[NEU!]**
+
+**Zweck**: Live-Visualisierung des Service-Netzwerks (wer ruft wen auf?)
+
+**Demo-Wert**:
+
+- 🎨 **Live Network Graph** (React Flow)
+- 🔍 Zeigt aktive Connections (nicht nur registrierte Services)
+- 📊 RPS/Latency pro Connection
+- 💥 Chaos-Tests sichtbar: Connection bricht → Graph updated
+- 🌍 Multi-Language: Rust-Client → TS-Server sichtbar
+
+**Problem das es löst**:
+
+- Broker kennt nur Service-Registrations
+- Niemand weiß welche Services **gerade tatsächlich** verbunden sind
+- Debugging: "Warum kommt mein Request nicht an?"
+
+**Proto**: `packages/proto/runtime/v1/topology.proto`
+
+```protobuf
+service TopologyService {
+  rpc ReportConnection(stream ConnectionEvent) returns (ConnectionAck);
+  rpc GetTopology(TopologyQuery) returns (TopologySnapshot);
+  rpc WatchTopology(TopologyQuery) returns (stream TopologyUpdate);
+}
+
+message ConnectionEvent {
+  string source_service = 1;       // "calculator-client-rust"
+  string target_service = 2;       // "calculator-server"
+  ConnectionState state = 3;       // ESTABLISHED, ACTIVE, CLOSED
+  int64 timestamp = 4;
+  ConnectionMetadata metadata = 5;
+}
+
+message TopologySnapshot {
+  repeated ServiceNode nodes = 1;  // Services
+  repeated ServiceEdge edges = 2;  // Connections
+  int64 timestamp = 3;
+}
+
+message ServiceNode {
+  string service_name = 1;
+  string address = 2;
+  HealthState health = 3;          // Integration mit Health Service
+  int32 active_connections = 4;
+}
+
+message ServiceEdge {
+  string source = 1;
+  string target = 2;
+  int32 connection_count = 3;
+  double total_rps = 4;            // Requests per second
+  ConnectionState state = 5;
+}
+```
+
+**Implementation**:
+
+- TypeScript Service: `apps/topology-service/`
+- In-Memory Graph (Nodes + Edges)
+- Auto-Cleanup: Idle connections nach 30s entfernen
+- **gRPC Interceptor Package**: `packages/interceptors/topology-interceptor.ts`
+
+**Interceptor-Usage** (transparentes Tracking):
+
+```typescript
+// In calculator-server/client
+import { topologyInterceptor } from '@modular-runtime/interceptors'
+
+const server = new Server({
+  interceptors: [
+    topologyInterceptor({
+      serviceName: 'calculator-server',
+      topologyAddress: '127.0.0.1:50053',
+    }),
+  ],
+})
+
+// ← Services müssen nichts manuell tracken!
+// Interceptor meldet automatisch bei jedem gRPC Call
+```
+
+**Broker-Integration**:
+
+```typescript
+// Broker meldet Lookups an Topology Service
+async lookupService(request) {
+  const service = this.registry.find(request.interfaceName);
+
+  // Report: Client → Broker → Server (Discovery-Pfad)
+  await topologyClient.reportConnection({
+    source: request.callerService,
+    target: 'broker',
+    state: ACTIVE,
+    metadata: { method: 'LookupService' }
+  });
+
+  return service;
+}
+```
+
+**UI-Visualisierung** (React Flow):
+
+```tsx
+import ReactFlow from 'reactflow'
+
+export function TopologyView() {
+  const [topology, setTopology] = useState<TopologySnapshot>()
+
+  useEffect(() => {
+    const stream = topologyClient.watchTopology({})
+    for await (const update of stream) {
+      if (update.type === 'EDGE_ADDED') {
+        // Neue Connection → animierte Edge hinzufügen
+      }
+      if (update.type === 'NODE_REMOVED') {
+        // Service crashed → Node rot färben
+      }
+    }
+  }, [])
+
+  const nodes = topology.nodes.map((n) => ({
+    id: n.serviceName,
+    data: {
+      label: n.serviceName,
+      health: n.health, // Farbe: grün/gelb/rot
+      connections: n.activeConnections,
+    },
+    position: calculateLayout(n), // Force-directed layout
+  }))
+
+  const edges = topology.edges.map((e) => ({
+    id: `${e.source}-${e.target}`,
+    source: e.source,
+    target: e.target,
+    label: `${e.totalRps.toFixed(0)} RPS`,
+    animated: e.state === 'ACTIVE', // Animiert bei Traffic
+    style: { stroke: getEdgeColor(e.state) },
+  }))
+
+  return <ReactFlow nodes={nodes} edges={edges} />
+}
+```
+
+**Was zeigt die Demo?**
+
+1. **Service Discovery sichtbar**:
+   - Client startet → Node erscheint
+   - Client: `LookupService("Calculator")` → Edge: Client → Broker
+   - Broker antwortet → Edge: Client → Calculator-Server
+
+2. **Multi-Client-Szenarien**:
+   - 3 Clients (TS, Rust, C++) → alle verbunden mit Server
+   - Graph zeigt 3 Edges zum Server
+
+3. **Load Testing**:
+   - Load-Generator startet → Edge mit "3000 RPS" Label
+   - RPS-Counter updated live
+
+4. **Chaos Engineering**:
+   - "Kill Calculator-Server" → Node wird rot
+   - Alle Edges zum Server verschwinden (CLOSED)
+   - Supervisor startet neu → Node wird gelb (STARTING)
+   - Clients reconnecten → Edges kommen zurück
+
+5. **Idle Connections**:
+   - Client connected aber sendet nichts → gestrichelte Edge
+   - Nach 30s → Edge verschwindet (Cleanup)
+
+---
 
 ### 1.1 Health Service ⭐⭐⭐⭐⭐
 
@@ -368,47 +545,70 @@ service StateService {
 
 ---
 
-## UI-Konzept: Electron vs. Web
+## UI-Konzepte: Zwei verschiedene Anwendungsfälle
 
-### Option A: Electron App (empfohlen)
+### Use Case 1: Supervisor Desktop App (Electron)
 
-**Pro**:
+**Zweck**: Production-Tool für Entwickler, ersetzt/erweitert den Terminal-Supervisor
 
-- Desktop-native
-- Direkte Node.js-Integration (Supervisor-Logik wiederverwenden)
-- File System Access
+**Zielgruppe**: Entwickler die Services lokal entwickeln und debuggen
 
-**Con**:
+**Features**:
 
-- Extra Build-Prozess
-- Platform-spezifische Builds
+- Process Management (Start/Stop/Restart Services)
+- Detaillierte Logs (stdout/stderr) mit xterm.js
+- Service Config Editor (config.yaml bearbeiten)
+- File System Integration
+- Schnelle Performance (natives gRPC)
 
 **Tech Stack**:
 
 - Electron + React + TypeScript
-- Recharts für Graphs
-- xterm.js für Log-Terminal
-- Tailwind CSS
+- xterm.js für Terminal-Output
+- Native Node.js APIs (child_process, fs)
+- Direktes gRPC (kein Adapter)
+
+**Verwendung**:
+
+- Läuft als Desktop-App auf Entwickler-Maschinen
+- Ersetzt `supervisor` CLI-Tool
+- Volle Kontrolle über lokale Prozesse
+
+**Priorität**: **Optional** (Terminal-Supervisor funktioniert bereits)
 
 ---
 
-### Option B: Web-UI (einfacher für Demos)
+### Use Case 2: Monitoring Dashboard (Web)
 
-**Pro**:
+**Zweck**: Demo/Monitoring-Tool für Präsentationen und Live-Visualisierung
 
-- Browser-basiert (überall lauffähig)
-- Einfacher zu hosten
-- Screenshot/Recording einfacher
+**Zielgruppe**: Demos, Präsentationen, externe Betrachter
 
-**Con**:
+**Features**:
 
-- gRPC braucht Adapter (siehe unten)
+- **Live Topology Graph** (React Flow) ← **Killer-Feature**
+- Health Status Dashboard
+- Load Testing Controls
+- Chaos Engineering Buttons
+- Log Viewer (read-only)
+- Metrics Graphs
 
 **Tech Stack**:
 
 - React + TypeScript + Vite
-- gRPC-Web oder Connect (buf.build)
-- TanStack Query für Data Fetching
+- React Flow (Topology Graph)
+- Recharts (Metrics)
+- Tailwind CSS
+- Connect (gRPC-Web)
+
+**Verwendung**:
+
+- Läuft im Browser
+- URL-teilbar (für Remote-Demos)
+- Kein Installation nötig
+- Screenshot/Recording-freundlich
+
+**Priorität**: **Hoch** (für Demo-Zwecke essentiell)
 
 ---
 
@@ -577,31 +777,58 @@ services:
 
 - Client startet ohne Server-Adresse
 - Broker-Lookup: `LookupService("CalculatorService")`
+- **Topology Graph**: Edge erscheint Client → Broker
 - Server registriert sich → Broker notified Clients
+- **Topology Graph**: Edge erscheint Client → Server
 - Server crashed → Broker entfernt aus Registry
+- **Topology Graph**: Server-Node wird rot, Edges verschwinden
 
-### 3. Load Testing 📊
+### 3. Live Network Topology 🕸️ **[NEU - Killer-Feature!]**
+
+- **Visual Graph**: Alle Services als Nodes (React Flow)
+- **Animated Edges**: Aktive Connections mit RPS-Counter
+- **Color-Coded**: Health-Status pro Node (grün/gelb/rot)
+- **Real-time Updates**: Neue Connections erscheinen sofort
+- **Connection Details**: Click auf Edge → Latency, Request Count, Protocol
+- **Discovery Path**: Client → Broker → Server-Lookup sichtbar
+- **Multi-Client**: 3 Clients gleichzeitig am Server → 3 Edges sichtbar
+
+### 4. Load Testing 📊
 
 - Start Load-Generator: 1000 RPS
-- Graph zeigt Live-Latency
+- **Topology Graph**: Dicke Edge Load-Gen → Server mit "1000 RPS"
+- Latency-Graph zeigt Live-Werte
 - Health Service: HEALTHY → DEGRADED (high latency)
+- **Topology Graph**: Server-Node wird gelb
 - Stop Load → DEGRADED → HEALTHY
+- **Topology Graph**: Edge-Label "1000 RPS" → "0 RPS" → verschwindet
 
-### 4. Chaos Engineering 💥
+### 5. Chaos Engineering 💥
 
 - Button: "Inject 500ms Latency"
-- Graph zeigt Latency-Spike
+- **Topology Graph**: Edge wird orange (slow connection)
+- Latency-Graph zeigt Spike
 - Services loggen Timeouts
 - Clear Fault → Latency normal
+- **Topology Graph**: Edge wieder normal (grün)
 
-### 5. Multi-Language 🌍
+- Button: "Kill Calculator-Server"
+- **Topology Graph**: Server-Node rot, alle Edges verschwinden
+- Supervisor: Restart detected
+- **Topology Graph**: Node gelb (STARTING)
+- Server ready
+- **Topology Graph**: Node grün, Clients reconnecten (Edges kommen zurück)
+
+### 6. Multi-Language 🌍
 
 - Calculator-Server (TypeScript)
 - Calculator-Client (Rust, C++, TypeScript)
+- **Topology Graph**: 3 Nodes (Rust, C++, TS) alle connected zu Server
+- **Node Labels**: Zeigen Language-Icon (🦀 Rust, ⚙️ C++, 📘 TS)
 - Logs zeigen: "Rust client called TS server"
 - Alle Clients nutzen gleichen Broker
 
-### 6. Log Correlation 🔗
+### 7. Log Correlation 🔗
 
 - Request-ID: `req-123`
 - Logs:
@@ -610,92 +837,342 @@ services:
   - `[calculator-server] req-123 Add(2,3) = 5`
   - `[calculator-client-rust] req-123 Result: 5`
 - UI filtert nach `req-123` → kompletter Request-Flow
+- **Topology Graph**: Click auf Edge → zeigt letzten Request mit ID
 
 ---
 
-## Roadmap mit Zeitschätzung
+## Monitoring Dashboard (Web) - Detaillierte Spezifikation
 
-| Phase | Service                   | Aufwand    | Status      |
-| ----- | ------------------------- | ---------- | ----------- |
-| **1** | Health Service            | 3-4 Tage   | 🔲 Geplant  |
-| **1** | Logger Service            | 3-4 Tage   | 🔲 Geplant  |
-| **1** | Proto Definitions         | 1 Tag      | 🔲 Geplant  |
-| **1** | Client-Integration (Calc) | 2 Tage     | 🔲 Geplant  |
-| **2** | Load Generator            | 4-5 Tage   | 🔲 Geplant  |
-| **2** | Chaos Injector            | 4-5 Tage   | 🔲 Geplant  |
-| **3** | UI (Electron/Web)         | 1-2 Wochen | 🔲 Geplant  |
-| **3** | Config Service            | 3-4 Tage   | 🔲 Optional |
-| **3** | State Manager             | 5-7 Tage   | 🔲 Optional |
+**Name**: `modular-runtime-dashboard` (Arbeitstitel)
 
-**Gesamt**: 3-4 Wochen für vollständige Demo-Umgebung
+**Deployment**:
+
+```yaml
+# config.yaml
+services:
+  - name: dashboard
+    command: pnpm
+    args: ['-C', 'apps/dashboard', 'dev']
+    env:
+      PORT: '3000'
+```
+
+**Tech Stack**:
+
+```json
+{
+  "framework": "React + TypeScript + Vite",
+  "gRPC": "@connectrpc/connect-web (buf.build)",
+  "topology-graph": "reactflow",
+  "charts": "recharts",
+  "styling": "tailwindcss",
+  "state": "zustand"
+}
+```
+
+**Warum Web für Demos**:
+
+- ✅ Browser-basiert (überall lauffähig)
+- ✅ URL-teilbar (Remote-Demos möglich)
+- ✅ Screenshots/Recordings einfacher
+- ✅ Keine Installation nötig
+- ✅ Connect (gRPC-Web) funktioniert einwandfrei
+
+**Topology Graph mit React Flow**:
+
+```tsx
+import ReactFlow, { Node, Edge, Background, Controls } from 'reactflow'
+import 'reactflow/dist/style.css'
+
+export function TopologyGraph() {
+  const { data: topology } = useTopologyStream()
+
+  const nodes: Node[] = topology.nodes.map((n) => ({
+    id: n.serviceName,
+    type: 'custom',
+    data: {
+      label: n.serviceName,
+      health: n.health,
+      icon: getLanguageIcon(n.serviceName),
+      activeConnections: n.activeConnections,
+    },
+    position: calculateForceDirectedLayout(n),
+    style: {
+      background: getHealthColor(n.health),
+      borderWidth: 2,
+      borderColor: n.activeConnections > 0 ? '#3b82f6' : '#94a3b8',
+    },
+  }))
+
+  const edges: Edge[] = topology.edges.map((e) => ({
+    id: `${e.source}-${e.target}`,
+    source: e.source,
+    target: e.target,
+    label: e.totalRps > 0 ? `${e.totalRps.toFixed(0)} RPS` : '',
+    animated: e.state === 'ACTIVE',
+    style: {
+      stroke: getEdgeStateColor(e.state),
+      strokeWidth: Math.min(2 + Math.log10(e.totalRps + 1), 8),
+    },
+    markerEnd: { type: 'arrowclosed' },
+  }))
+
+  return (
+    <div style={{ width: '100%', height: '600px' }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodeClick={(_, node) => showNodeDetails(node)}
+        onEdgeClick={(_, edge) => showConnectionDetails(edge)}
+      >
+        <Background />
+        <Controls />
+      </ReactFlow>
+    </div>
+  )
+}
+
+function getHealthColor(health: HealthState): string {
+  switch (health) {
+    case 'HEALTHY':
+      return '#10b981' // green
+    case 'DEGRADED':
+      return '#f59e0b' // yellow
+    case 'UNHEALTHY':
+      return '#ef4444' // red
+    case 'STARTING':
+      return '#6366f1' // indigo
+    default:
+      return '#94a3b8' // gray
+  }
+}
+
+function getEdgeStateColor(state: ConnectionState): string {
+  switch (state) {
+    case 'ACTIVE':
+      return '#3b82f6' // blue (animated)
+    case 'IDLE':
+      return '#94a3b8' // gray
+    case 'ESTABLISHING':
+      return '#6366f1' // indigo
+    case 'FAILED':
+      return '#ef4444' // red
+    default:
+      return '#d1d5db'
+  }
+}
+```
+
+**gRPC Streaming (Connect)**:
+
+````tsx
+import { createPromiseClient } from '@connectrpc/connect'
+import { createConnectTransport } from '@connectrpc/connect-web'
+import { TopologyService } from './gen/runtime/v1/topology_connect'
+
+const transport = createConnectTransport({
+  baseUrl: 'http://localhost:50053',
+})
+
+const client = createPromiseClient(TopologyService, transport)
+
+export function useTopologyStream() {
+  const [topology, setTopology] = useState<TopologySnapshot>()
+
+  useEffect(() => {
+    const stream = client.watchTopology({})
+
+    ;(async () => {
+      for await (const update of stream) {
+        setTopology((prev) => applyTopologyUpdate(prev, update))
+      }
+    })()
+
+    return () => stream.cancel()
+  }, [])
+
+  return { data: topology }     | Aufwand      | Status              |
+| ----- | -------------------------------- | ------------ | ------------------- |
+| **1** | **Topology Service** ⭐          | **5-6 Tage** | 🔲 **Höchste Prio** |
+| **1** | gRPC Interceptor Package         | 2-3 Tage     | 🔲 Geplant          |
+| **1** | Health Service                   | 3-4 Tage     | 🔲 Geplant          |
+| **1** | Logger Service                   | 3-4 Tage     | 🔲 Geplant          |
+| **1** | Proto Definitions (all)          | 2 Tage       | 🔲 Geplant          |
+| **1** | Client-Integration (Calc)        | 2 Tage       | 🔲 Geplant          |
+| **2** | Load Generator                   | 4-5 Tage     | 🔲 Geplant          |
+| **2** | Chaos Injector                   | 4-5 Tage     | 🔲 Geplant          |
+| **3** | Monitoring Dashboard (Web)       | 1-2 Wochen   | 🔲 Geplant          |
+| **3** | Topology Graph (React Flow)      | 4-5 Tage     | 🔲 **Critical**     |
+| **3** | Connect Integration              | 2-3 Tage     | 🔲 Geplant          |
+| **3** | Config Service                   | 3-4 Tage     | 🔲 Optional         |
+| **3** | State Manager                    | 5-7 Tage     | 🔲 Optional         |
+| **4** | Supervisor Desktop App (Electron)| 1-2 Wochen   | 🔲 Geplant          |
+| **1** | Logger Service              | 3-4 Tage     | 🔲 Geplant          |
+| **1** | Proto Definitions (all)     | 2 Tage       | 🔲 Geplant          |
+| **1** | Client-Integration (Calc)   | 2 Tage       | 🔲 Geplant          |
+| **2** | Load Generator              | 4-5 Tage     | 🔲 Geplant          |
+| **2** | Chaos Injector              | 4-5 Tage     | 🔲 Geplant          |
+| **3** | Web UI (React + Vite)       | 1-2 Wochen   | 🔲 Geplant          |
+| **3** | Topology Graph (React Flow) | 4-5 Tage     | 🔲 **Critical**     |
+| **3** | Connect Integration         | 2-3 Tage     | 🔲 Geplant          |
+| **3** | Config Service              | 3-4 Tage     | 🔲 Optional         |
+| **3** | State Manager               | 5-7 Tage     | 🔲 Optional         |
+
+**Gesamt**: 4-5 Wochen für vollständige Demo-Umgebung
+
+**Kritischer Pfad**:
+
+1. Topology Service (Backend für Live-Graph)
+2. **Monitoring Dashboard** (Web) + React Flow ← **Killer-Feature für Demos**
+4. Load + Chaos (Demo-Szenarien verstärken)
+
+**Optional/Später**:
+- Supervisor Desktop App (Electron) für Production-Entwickler-Workflow*Killer-Feature**
+4. Load + Chaos (Demo-Szenarien verstärken)
 
 ---
 
-## Nächste Schritte
+### Sprint-Plan
 
-1. ✅ Proto-Definitionen erstellen (`runtime/v1/health.proto`, `logger.proto`)
-2. ✅ Health Service implementieren (TypeScript)
-3. ✅ Calculator-Services erweitern (Health Reporting)
-4. ✅ Logger Service implementieren
-5. ✅ Supervisor-Integration (Health + Logs)
-6. ⏸️ Load Generator implementieren
-7. ⏸️ Chaos Injector implementieren
-8. ⏸️ UI-Entscheidung: Electron vs. Web (Connect)
-9. ⏸️ UI-Prototyp mit Live-Graphs
+#### **Sprint 1: Topology Foundation** (Week 1)
+
+1. Proto erstellen (`runtime/v1/topology.proto`)
+2. Topology Service implementieren (TypeScript)
+   - In-Memory Graph (Nodes + Edges)
+   - Stream-API für Live-Updates
+   - Auto-Cleanup (idle connections nach 30s)
+3. Interceptor Package erstellen
+   - `packages/interceptors/topology-interceptor.ts`
+   - Client + Server Interceptors
+   - Auto-Reporting bei jedem gRPC Call
+
+#### **Sprint 2: Integration** (Week 2)
+
+4. Calculator-Services erweitern
+   - Interceptor hinzufügen (transparent)
+   - Testen: 3 Clients gleichzeitig
+5. Broker-Integration
+   - Lookup-EventMonitoring Dashboard** (Week 3-4)
+
+7. Dashboard Setup (Vite + React + TypeScript)
+   - Projekt: `apps/dashboard/`
+   - Dev-Server auf Port 3000
+8. Connect Integration (gRPC-Web ohne Proxy)
+   - Client-Code generieren mit buf
+9. Topology Graph Component (React Flow)
+   - Live-Updates via Streaming
+   - Node Styling (Health-based colors)
+   - Edge Animation (RPS-based thickness)
+10. Dashboard Views
+    - Topology Page (Hauptfeature)
+    - Health Status Panel
+    - Live Logs Panel
+    - Chaos Controls (Load/Fault Injection
+   - Live-Updates via Streaming
+   - Node Styling (Health-based colors)
+   - Edge Animation (RPS-based thickness)
+10. Dashboard (Health, Logs, Chaos Controls)
+
+#### **Sprint 4: Demo-Szenarien** (Week 4-5)
+
+11. Load Generator implementieren
+12. Chaos Injector implementieren
+13. Demo-Script schreiben
+14. Documentation + Screenshots
 
 ---
 
 ## Technische Entscheidungen
 
-### gRPC in Browser
+### Browser + gRPC: Connect (buf.build)
 
-**Entscheidung**: **Connect** (buf.build)
+**Entscheidung**: `@connectrpc/connect-web` statt gRPC-Web + Envoy
 
 **Begründung**:
 
-- ✅ Kein Proxy (Envoy) nötig
-- ✅ Services sprechen gRPC + HTTP/1.1
-- ✅ TypeScript-Client automatisch generiert
-- ✅ Streaming funktioniert (Server-Sent Events)
+- ✅ Kein Proxy nötig (Services sprechen gRPC + HTTP/1.1 gleichzeitig)
+- ✅ TypeScript-Client auto-generiert
+- ✅ Streaming via Server-Sent Events
 - ✅ Rückwärtskompatibel (bestehende gRPC-Clients unverändert)
 
-**Implementierung**:
+**Implementation**:
 
 ```typescript
-// Health Service Server
+// Service-Side (z.B. Topology Service)
 import { ConnectRouter } from '@connectrpc/connect'
 
 export default (router: ConnectRouter) => {
-  router.rpc(HealthService, HealthService.methods.checkHealth, async (req) => {
-    return { state: HealthState.HEALTHY, message: 'OK' }
+  router.rpc(TopologyService, TopologyService.methods.watchTopology, async function* (req) {
+    for await (const update of topologyUpdates) {
+      yield update
+    }
   })
 }
-```
+````
 
-```typescript
-// Browser Client
+````typescript
+// Browser-Client
 import { createPromiseClient } from '@connectrpc/connect'
 import { createConnectTransport } from '@connectrpc/connect-web'
 
 const client = createPromiseClient(
-  HealthService,
-  createConnectTransport({ baseUrl: 'http://localhost:50052' })
-)
+  TopologyServics: Zwei Tools für zwei Zwecke
 
-const status = await client.checkHealth({ serviceName: 'broker' })
-console.log(status.state) // HEALTHY
-```
+#### 1. Monitoring Dashboard (Web) - Fokus: Demos & Visualisierung
+
+**Warum Web**:
+- Browser-basiert (keine Installation)
+- URL-teilbar (Remote-Demos)
+- Screenshot/Recording-freundlich
+- Focus auf Visualisierung (Topology Graph)
+
+**Tech Stack**:
+```json
+{
+  "framework": "React + TypeScript + Vite",
+  "gRPC": "@connectrpc/connect-web",
+  "topology-graph": "reactflow",
+  "charts": "recharts",
+  "styling": "tailwindcss",
+  "state": "zustand"
+}
+````
+
+**Deployment**: Als Service in `config.yaml` (Port 3000)
 
 ---
 
-## Commit Message
+#### 2. Supervisor Desktop App (Electron) - Fokus: Development Workflow
 
+**Warum Electron**:
+
+- Desktop-native (bessere Performance)
+- Direkte Node.js-Integration (Supervisor-Logik wiederverwenden)
+- File System Access (config.yaml bearbeiten)
+- Process Management (Start/Stop/Restart)
+
+**Tech Stack**:
+
+```json
+{
+  "framework": "Electron + React + TypeScript",
+  "terminal": "xterm.js",
+  "gRPC": "native @grpc/grpc-js",
+  "styling": "tailwindcss"
+}
 ```
-feat(demo): add runtime services roadmap and architecture plan
 
-- Define Phase 1 (Health + Logger services)
-- Define Phase 2 (Load Generator + Chaos Injector)
-- Evaluate Browser+gRPC options (Connect recommended)
-- Add UI concepts (Electron vs Web-based)
-- Document demo features and observability goals
+**Use Case**: Ersetzt/erweitert Terminal-Supervisor für bessere UX
+
+**Status**: Optional (niedrigere Priorität als Web-Dashboard)
+
+```json
+{
+  "framework": "React + TypeScript + Vite",
+  "gRPC": "@connectrpc/connect-web",
+  "topology-graph": "reactflow",
+  "charts": "recharts",
+  "styling": "tailwindcss",
+  "state": "zustand"
+}
 ```
