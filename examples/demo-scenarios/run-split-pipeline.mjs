@@ -8,6 +8,7 @@ import { setTimeout } from 'node:timers'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const shutdownTimeoutMs = 2500
 
 const defaultConfig = {
   count: 100000,
@@ -167,6 +168,7 @@ const startService = (name, command, args, env = {}) => {
     cwd: repoRoot,
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
   })
 
   let ready = false
@@ -192,6 +194,27 @@ const startService = (name, command, args, env = {}) => {
   return { child, isReady: () => ready }
 }
 
+const signalProcess = (child, signal) => {
+  if (!child || child.killed) {
+    return
+  }
+
+  try {
+    if (child.pid && process.platform !== 'win32') {
+      process.kill(-child.pid, signal)
+      return
+    }
+  } catch {
+    // fall through to direct kill
+  }
+
+  try {
+    child.kill(signal)
+  } catch (error) {
+    console.error(`[cleanup] Failed to send ${signal}:`, error)
+  }
+}
+
 const main = async () => {
   const config = parseArgs(process.argv.slice(2))
 
@@ -201,18 +224,35 @@ const main = async () => {
 
   const services = []
 
-  const cleanup = () => {
-    console.log('\n\nShutting down services...')
+  let cleaning = false
+
+  const cleanup = (reason = 'shutdown', error) => {
+    if (cleaning) {
+      return
+    }
+    cleaning = true
+    console.log(`\n\nShutting down services (${reason})...`)
+    if (error) {
+      const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
+      console.error(`[cleanup] ${message}`)
+    }
     for (const service of services) {
-      service.kill('SIGTERM')
+      signalProcess(service, 'SIGTERM')
     }
     setTimeout(() => {
-      process.exit(0)
-    }, 1000)
+      for (const service of services) {
+        signalProcess(service, 'SIGKILL')
+      }
+    }, shutdownTimeoutMs)
+    setTimeout(() => {
+      process.exit(error ? 1 : 0)
+    }, shutdownTimeoutMs + 500)
   }
 
-  process.on('SIGINT', cleanup)
-  process.on('SIGTERM', cleanup)
+  process.on('SIGINT', () => cleanup('SIGINT'))
+  process.on('SIGTERM', () => cleanup('SIGTERM'))
+  process.on('uncaughtException', (error) => cleanup('uncaughtException', error))
+  process.on('unhandledRejection', (error) => cleanup('unhandledRejection', error))
 
   try {
     // Step 0: Build if needed
@@ -321,11 +361,10 @@ const main = async () => {
     await execCommand('node', orchestratorArgs)
 
     console.log('\n✓ Pipeline complete!')
-    cleanup()
+    cleanup('complete')
   } catch (err) {
     console.error('Error:', err)
-    cleanup()
-    process.exit(1)
+    cleanup('error', err)
   }
 }
 
