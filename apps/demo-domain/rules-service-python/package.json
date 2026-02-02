@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "gen": "node scripts/gen-proto.mjs",
-    "start": "python src/rules_service.py"
+    "start": "python3 src/rules_service.py"
   }
 }

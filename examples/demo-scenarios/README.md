@@ -70,11 +70,13 @@ Notable flags:
 - `--workload events|work-items|mixed`
 - `--payload-size small|medium|large`
 - `--iterations`
+- `--impl ts|polyglot`
 - `--no-build` / `--no-generate`
 - `--input` / `--output`
 
 The split script builds and starts the services plus the pipeline orchestrator by default.
-The demo script uses the TypeScript/Node.js service implementations; polyglot variants are not used here.
+By default it uses the TypeScript/Node.js services; `--impl polyglot` switches parse/rules/aggregate to Rust/Python/Go.
+The polyglot mode requires the respective toolchains (cargo, python, go) to be installed.
 All stdout/stderr is prefixed by origin (runner, generator, orchestrator, services); multiline output is split into prefixed lines.
 
 ## Output Files

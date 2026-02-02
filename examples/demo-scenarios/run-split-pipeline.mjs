@@ -61,6 +61,7 @@ const defaultConfig = {
   workload: 'events',
   payloadSize: 'medium',
   iterations: 500,
+  implementation: 'polyglot', // ts | polyglot
 }
 
 const usage = `Usage: run-split-pipeline.mjs [options]
@@ -77,6 +78,7 @@ Options:
   --workload <mode>      Workload mode: events|work-items|mixed (default: ${defaultConfig.workload})
   --payload-size <size>  Payload size: small|medium|large (default: ${defaultConfig.payloadSize})
   --iterations <number>  Compute iterations (default: ${defaultConfig.iterations})
+  --impl <mode>          Service implementation: ts|polyglot (default: ${defaultConfig.implementation})
   --no-build             Skip build step
   --no-generate          Skip generator step
   -h, --help             Show this help message
@@ -170,6 +172,16 @@ const parseArgs = (argv) => {
 
     if (arg === '--iterations') {
       config.iterations = Number(getValue(i + 1))
+      i++
+      continue
+    }
+
+    if (arg === '--impl') {
+      const value = getValue(i + 1)
+      if (value !== 'ts' && value !== 'polyglot') {
+        throw new Error(`Invalid implementation: ${value}`)
+      }
+      config.implementation = value
       i++
       continue
     }
@@ -279,6 +291,41 @@ const signalProcess = (child, signal) => {
   }
 }
 
+const resolveServiceCommands = (config) => {
+  if (config.implementation === 'polyglot') {
+    return {
+      parse: {
+        command: 'pnpm',
+        args: ['-C', 'apps/demo-domain/parse-service-rust', 'start'],
+      },
+      rules: {
+        command: 'pnpm',
+        args: ['-C', 'apps/demo-domain/rules-service-python', 'start'],
+        env: { PYTHONUNBUFFERED: '1' },
+      },
+      aggregate: {
+        command: 'pnpm',
+        args: ['-C', 'apps/demo-domain/aggregate-service-go', 'start'],
+      },
+    }
+  }
+
+  return {
+    parse: {
+      command: 'node',
+      args: ['apps/demo-domain/parse-service/dist/parse-service.js'],
+    },
+    rules: {
+      command: 'node',
+      args: ['apps/demo-domain/rules-service/dist/rules-service.js'],
+    },
+    aggregate: {
+      command: 'node',
+      args: ['apps/demo-domain/aggregate-service/dist/aggregate-service.js'],
+    },
+  }
+}
+
 const main = async () => {
   const config = parseArgs(process.argv.slice(2))
 
@@ -322,34 +369,42 @@ const main = async () => {
     // Step 0: Build if needed
     if (config.build) {
       logRunner('Step 0: Building services...')
-      await execCommand('pnpm', [
-        '-r',
-        '--filter',
-        './apps/demo-domain/*-service',
-        '--filter',
-        './apps/demo-domain/pipeline-orchestrator',
-        'run',
-        'build',
-      ], { name: 'build' })
+      await execCommand(
+        'pnpm',
+        [
+          '-r',
+          '--filter',
+          './apps/demo-domain/*-service',
+          '--filter',
+          './apps/demo-domain/pipeline-orchestrator',
+          'run',
+          'build',
+        ],
+        { name: 'build' }
+      )
       logRunner('✓ Build complete\n')
     }
 
     // Step 1: Generate events if needed
     if (config.generate) {
       logRunner('Step 1: Generating events...')
-      await execCommand('node', [
-        'apps/demo-domain/event-generator/dist/event-generator.js',
-        '--count',
-        String(config.count),
-        '--users',
-        String(config.users),
-        '--seed',
-        String(config.seed),
-        '--types',
-        config.types,
-        '--output',
-        config.input,
-      ], { name: 'generator' })
+      await execCommand(
+        'node',
+        [
+          'apps/demo-domain/event-generator/dist/event-generator.js',
+          '--count',
+          String(config.count),
+          '--users',
+          String(config.users),
+          '--seed',
+          String(config.seed),
+          '--types',
+          config.types,
+          '--output',
+          config.input,
+        ],
+        { name: 'generator' }
+      )
       logRunner('✓ Events generated\n')
     } else {
       logRunner('Step 1: Skipping generator (using existing events.ndjson)\n')
@@ -357,6 +412,8 @@ const main = async () => {
 
     // Step 2: Start services
     logRunner('Step 2: Starting services...')
+
+    const serviceCommands = resolveServiceCommands(config)
 
     const ingest = startService('ingest', 'node', [
       'apps/demo-domain/ingest-service/dist/ingest-service.js',
@@ -366,21 +423,30 @@ const main = async () => {
     services.push(ingest.child)
     await sleep(1000)
 
-    const parse = startService('parse', 'node', [
-      'apps/demo-domain/parse-service/dist/parse-service.js',
-    ])
+    const parse = startService(
+      'parse',
+      serviceCommands.parse.command,
+      serviceCommands.parse.args,
+      serviceCommands.parse.env ?? {}
+    )
     services.push(parse.child)
     await sleep(1000)
 
-    const rules = startService('rules', 'node', [
-      'apps/demo-domain/rules-service/dist/rules-service.js',
-    ])
+    const rules = startService(
+      'rules',
+      serviceCommands.rules.command,
+      serviceCommands.rules.args,
+      serviceCommands.rules.env ?? {}
+    )
     services.push(rules.child)
     await sleep(1000)
 
-    const aggregate = startService('aggregate', 'node', [
-      'apps/demo-domain/aggregate-service/dist/aggregate-service.js',
-    ])
+    const aggregate = startService(
+      'aggregate',
+      serviceCommands.aggregate.command,
+      serviceCommands.aggregate.args,
+      serviceCommands.aggregate.env ?? {}
+    )
     services.push(aggregate.child)
     await sleep(1000)
 
