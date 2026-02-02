@@ -53,8 +53,8 @@ export const parseEvent = (rawEvent: Event): ParsedEvent | null => {
   return {
     type,
     user,
-    value: Math.trunc(value),
-    timestamp,
-    sequence: rawEvent.sequence ?? 0,
+    value: Math.trunc(value).toString(),
+    timestamp: timestamp.toString(),
+    sequence: rawEvent.sequence ?? '0',
   }
 }

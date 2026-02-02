@@ -84,8 +84,8 @@ const startParseServer = async (config: ParseConfig): Promise<grpc.Server> => {
               event: {
                 type: 'work-item',
                 user: JSON.stringify(processedItem),
-                value: 0,
-                timestamp: Date.now(),
+                value: '0',
+                timestamp: Date.now().toString(),
                 sequence: request.event.sequence,
               },
             }
@@ -126,8 +126,8 @@ const startParseServer = async (config: ParseConfig): Promise<grpc.Server> => {
                 return {
                   type: 'work-item',
                   user: JSON.stringify(processedItem),
-                  value: 0,
-                  timestamp: Date.now(),
+                  value: '0',
+                  timestamp: Date.now().toString(),
                   sequence: event.sequence,
                 }
               }
