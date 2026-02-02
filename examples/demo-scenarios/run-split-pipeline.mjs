@@ -9,6 +9,11 @@ import { setTimeout as sleep } from 'node:timers/promises'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const shutdownTimeoutMs = 2500
+const ansi = {
+  reset: '\x1b[0m',
+  colors: ['\x1b[36m', '\x1b[32m', '\x1b[33m', '\x1b[34m', '\x1b[35m', '\x1b[31m'],
+}
+const processColors = new Map()
 
 const defaultConfig = {
   count: 100000,
@@ -162,6 +167,35 @@ const execCommand = (command, args, opts = {}) => {
   })
 }
 
+const colorizePrefix = (name) => {
+  let color = processColors.get(name)
+  if (!color) {
+    color = ansi.colors[processColors.size % ansi.colors.length]
+    processColors.set(name, color)
+  }
+  return `${color}[${name}]${ansi.reset}`
+}
+
+const streamLines = (stream, onLine) => {
+  let buffer = ''
+  stream.on('data', (data) => {
+    buffer += data.toString()
+    const lines = buffer.split(/\r?\n/u)
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (line.length === 0) {
+        continue
+      }
+      onLine(line)
+    }
+  })
+  stream.on('end', () => {
+    if (buffer.length > 0) {
+      onLine(buffer)
+    }
+  })
+}
+
 const startService = (name, command, args, env = {}) => {
   console.log(`→ Starting ${name}...`)
   const child = spawn(command, args, {
@@ -172,17 +206,17 @@ const startService = (name, command, args, env = {}) => {
   })
 
   let ready = false
+  const prefix = colorizePrefix(name)
 
-  child.stdout.on('data', (data) => {
-    const line = data.toString().trim()
+  streamLines(child.stdout, (line) => {
     if (line.includes('listening') || line.includes('running')) {
       ready = true
     }
-    console.log(`[${name}] ${line}`)
+    console.log(`${prefix} ${line}`)
   })
 
-  child.stderr.on('data', (data) => {
-    console.error(`[${name}] ${data.toString().trim()}`)
+  streamLines(child.stderr, (line) => {
+    console.error(`${prefix} ${line}`)
   })
 
   child.on('close', (code) => {
