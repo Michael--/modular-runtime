@@ -48,13 +48,13 @@ export const parseEvent = (rawEvent: Event): ParsedEvent | null => {
   }
 
   const timestampMs = Date.parse(ts)
-  const timestamp = Number.isFinite(timestampMs) ? String(Math.trunc(timestampMs)) : '0'
+  const timestamp = Number.isFinite(timestampMs) ? Math.trunc(timestampMs) : 0
 
   return {
     type,
     user,
-    value: String(Math.trunc(value)),
+    value: Math.trunc(value),
     timestamp,
-    sequence: rawEvent.sequence ?? '0',
+    sequence: rawEvent.sequence ?? 0,
   }
 }

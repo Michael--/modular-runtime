@@ -211,8 +211,8 @@ fn parse_event(event: &Event) -> Option<ParsedEvent> {
         r#type: String::from("work-item"),
         user: processed_json, // Store processed WorkItem JSON in user field (hack for demo)
         value: 0,
-        timestamp: 0,
-        sequence: event.sequence.clone(),
+        timestamp: chrono::Utc::now().timestamp_millis(),
+        sequence: event.sequence,
       });
     }
   }
