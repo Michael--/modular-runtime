@@ -46,6 +46,8 @@ services:
       - -C
       - apps/calculator-client-rust
       - start
+      - --broker-address
+      - 127.0.0.1:50051
     cwd: ../..
     env: {}
     restart: always
@@ -59,6 +61,8 @@ services:
       - -C
       - apps/calculator-client-cpp
       - start
+      - --broker-address
+      - 127.0.0.1:50051
     cwd: ../..
     env: {}
     restart: always

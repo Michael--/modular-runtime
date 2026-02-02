@@ -38,16 +38,28 @@ namespace
     g_running = false;
   }
 
-  std::string BrokerAddress()
+  std::string BrokerAddress(int argc, char *argv[])
   {
-    const char *value = std::getenv(kBrokerAddressEnv);
-    if (value == nullptr || std::string(value).empty())
+    std::string broker_address = kDefaultBrokerAddress;
+    for (int i = 1; i < argc; ++i)
+    {
+      std::string arg = argv[i];
+      if (arg == "--broker-address" && i + 1 < argc)
+      {
+        broker_address = argv[++i];
+      }
+    }
+    const char *env_value = std::getenv(kBrokerAddressEnv);
+    if (env_value != nullptr && !std::string(env_value).empty())
+    {
+      broker_address = env_value;
+    }
+    else if (argc == 1)
     {
       std::cout << "Using default broker address: " << kDefaultBrokerAddress
-                << " (set " << kBrokerAddressEnv << " to override)" << std::endl;
-      return kDefaultBrokerAddress;
+                << " (set " << kBrokerAddressEnv << " or use --broker-address to override)" << std::endl;
     }
-    return value;
+    return broker_address;
   }
 
   bool RoleMatches(const std::string &role)
@@ -174,14 +186,14 @@ namespace
   }
 } // namespace
 
-int main()
+int main(int argc, char *argv[])
 {
   std::signal(SIGINT, HandleSignal);
   std::signal(SIGTERM, HandleSignal);
 
   std::cout << "Starting C++ calculator client..." << std::endl;
 
-  const std::string broker_address = BrokerAddress();
+  const std::string broker_address = BrokerAddress(argc, argv);
 
   std::random_device rd;
   std::mt19937 rng(rd());

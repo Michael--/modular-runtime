@@ -1,5 +1,6 @@
 mod proto;
 
+use clap::Parser;
 use proto::broker::v1::{
   broker_service_client::BrokerServiceClient, GetAvailableServicesRequest, LookupServiceRequest,
 };
@@ -15,17 +16,22 @@ const DEFAULT_BROKER_ADDRESS: &str = "127.0.0.1:50051";
 const SERVICE_NAME: &str = "calculator.v1.CalculatorService";
 const DEFAULT_ROLE: &str = "default";
 
+#[derive(Parser)]
+#[command(name = "calculator-client-rust")]
+#[command(about = "A Rust calculator client that connects to a broker")]
+struct Args {
+    /// Broker address in the format host:port
+    #[arg(long, default_value = DEFAULT_BROKER_ADDRESS)]
+    broker_address: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+  let args = Args::parse();
+
   println!("Starting Rust calculator client...");
 
-  let broker_address = std::env::var(BROKER_ADDRESS_ENV).unwrap_or_else(|_| {
-    println!(
-      "Using default broker address: {} (set {} to override)",
-      DEFAULT_BROKER_ADDRESS, BROKER_ADDRESS_ENV
-    );
-    DEFAULT_BROKER_ADDRESS.to_string()
-  });
+  let broker_address = std::env::var(BROKER_ADDRESS_ENV).unwrap_or(args.broker_address);
 
   let broker_url = normalize_broker_url(&broker_address);
   let mut broker = BrokerServiceClient::connect(broker_url).await?;

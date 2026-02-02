@@ -6,6 +6,6 @@
     "clean": "cargo clean",
     "gen": "pnpm -C ../../packages/proto gen",
     "build": "cargo build",
-    "start": "cargo run"
+    "start": "cargo run -- $@"
   }
 }

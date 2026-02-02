@@ -6,6 +6,6 @@
     "clean": "rm -rf build",
     "gen": "pnpm -C ../../packages/proto gen",
     "build": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build",
-    "start": "./build/calculator-client-cpp"
+    "start": "./build/calculator-client-cpp $@"
   }
 }
