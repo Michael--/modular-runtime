@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
+import console from 'node:console'
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { access } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
+import process from 'node:process'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 

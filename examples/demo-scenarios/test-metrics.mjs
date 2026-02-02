@@ -4,19 +4,20 @@
  * Runs a small pipeline (1000 events) and captures all service metrics
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, process } from 'node:child_process'
 import { setTimeout } from 'node:timers/promises'
+import { console } from 'node:console'
 
 const EVENTS = 1000
 
 async function runCommand(cmd, args, label) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     console.log(`\n→ Starting ${label}...`)
     const proc = spawn(cmd, args, { stdio: 'pipe' })
-    
+
     let stdout = ''
     let stderr = ''
-    
+
     proc.stdout.on('data', (data) => {
       const text = data.toString()
       stdout += text
@@ -25,15 +26,15 @@ async function runCommand(cmd, args, label) {
         console.log(`[${label}] ${text}`)
       }
     })
-    
+
     proc.stderr.on('data', (data) => {
       stderr += data.toString()
     })
-    
+
     proc.on('close', (code) => {
       resolve({ code, stdout, stderr, label })
     })
-    
+
     return proc
   })
 }
@@ -41,50 +42,50 @@ async function runCommand(cmd, args, label) {
 async function main() {
   console.log('=== Service Metrics Test ===')
   console.log(`Testing with ${EVENTS} events\n`)
-  
+
   // Start broker
   const broker = spawn('node', ['../../packages/broker/dist/broker.js'], {
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
   console.log('→ Broker started')
   await setTimeout(1000)
-  
+
   // Start services with metrics enabled
   const services = [
     {
       cmd: 'node',
       args: ['../../apps/demo-domain/ingest-service/dist/ingest-service.js'],
-      label: 'ingest'
+      label: 'ingest',
     },
     {
       cmd: '../../apps/demo-domain/parse-service-rust/target/release/parse-service-rust',
       args: [],
-      label: 'parse'
+      label: 'parse',
     },
     {
       cmd: 'python3',
       args: ['../../apps/demo-domain/rules-service-python/src/rules_service.py'],
-      label: 'rules'
+      label: 'rules',
     },
     {
       cmd: '../../apps/demo-domain/aggregate-service-go/aggregate-service-go',
       args: [],
-      label: 'aggregate'
+      label: 'aggregate',
     },
     {
       cmd: 'node',
       args: ['../../apps/demo-domain/sink-service/dist/sink-service.js'],
-      label: 'sink'
-    }
+      label: 'sink',
+    },
   ]
-  
+
   const procs = []
   for (const svc of services) {
-    const proc = spawn(svc.cmd, svc.args, { 
+    const proc = spawn(svc.cmd, svc.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      cwd: process.cwd()
+      cwd: process.cwd(),
     })
-    
+
     proc.stdout.on('data', (data) => {
       const lines = data.toString().split('\n')
       for (const line of lines) {
@@ -93,7 +94,7 @@ async function main() {
         }
       }
     })
-    
+
     proc.stderr.on('data', (data) => {
       const lines = data.toString().split('\n')
       for (const line of lines) {
@@ -102,30 +103,33 @@ async function main() {
         }
       }
     })
-    
+
     procs.push({ proc, ...svc })
     console.log(`→ ${svc.label} started`)
   }
-  
+
   await setTimeout(2000)
-  
+
   // Run orchestrator
   console.log('\n→ Running pipeline...')
   const orch = await runCommand(
     'node',
     [
       '../../apps/demo-domain/pipeline-orchestrator/dist/pipeline-orchestrator.js',
-      '--input', './events.ndjson',
-      '--output', './test-metrics-output.ndjson',
-      '--max-events', String(EVENTS)
+      '--input',
+      './events.ndjson',
+      '--output',
+      './test-metrics-output.ndjson',
+      '--max-events',
+      String(EVENTS),
     ],
     'orchestrator'
   )
-  
+
   console.log(orch.stdout)
-  
+
   await setTimeout(2000)
-  
+
   // Cleanup
   console.log('\n→ Shutting down...')
   for (const { proc, label } of procs) {
@@ -134,7 +138,7 @@ async function main() {
   }
   broker.kill('SIGTERM')
   console.log('  broker stopped')
-  
+
   console.log('\n✓ Test complete!')
 }
 

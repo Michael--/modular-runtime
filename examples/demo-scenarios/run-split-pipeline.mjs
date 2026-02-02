@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
+import console from 'node:console'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
+import process from 'node:process'
+import { setTimeout } from 'node:timers'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -251,36 +254,28 @@ const main = async () => {
     // Step 2: Start services
     console.log('Step 2: Starting services...')
 
-    const broker = startService('broker', 'node', ['packages/broker/dist/cli.js'])
-    services.push(broker.child)
-    await sleep(2000)
-
     const ingest = startService('ingest', 'node', [
       'apps/demo-domain/ingest-service/dist/ingest-service.js',
       '--input',
       config.input,
-      '--no-broker',
     ])
     services.push(ingest.child)
     await sleep(1000)
 
     const parse = startService('parse', 'node', [
       'apps/demo-domain/parse-service/dist/parse-service.js',
-      '--no-broker',
     ])
     services.push(parse.child)
     await sleep(1000)
 
     const rules = startService('rules', 'node', [
       'apps/demo-domain/rules-service/dist/rules-service.js',
-      '--no-broker',
     ])
     services.push(rules.child)
     await sleep(1000)
 
     const aggregate = startService('aggregate', 'node', [
       'apps/demo-domain/aggregate-service/dist/aggregate-service.js',
-      '--no-broker',
     ])
     services.push(aggregate.child)
     await sleep(1000)
@@ -289,7 +284,6 @@ const main = async () => {
       'apps/demo-domain/sink-service/dist/sink-service.js',
       '--output',
       config.output,
-      '--no-broker',
     ])
     services.push(sink.child)
     await sleep(1000)

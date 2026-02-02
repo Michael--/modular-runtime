@@ -4,6 +4,8 @@
  */
 import * as grpc from '@grpc/grpc-js'
 import { IngestServiceClient } from '../../packages/proto/generated/ts/pipeline/v1/pipeline.js'
+import { process } from 'node:child_process'
+import { console } from 'node:console'
 
 const main = async () => {
   console.log('=== Batching Test ===\n')
@@ -21,6 +23,7 @@ const main = async () => {
   let count1 = 0
   const start1 = Date.now()
 
+  // eslint-disable-next-line no-unused-vars
   for await (const response of stream1) {
     count1++
   }
@@ -41,6 +44,7 @@ const main = async () => {
   let count2 = 0
   const start2 = Date.now()
 
+  // eslint-disable-next-line no-unused-vars
   for await (const response of stream2) {
     count2++
   }
