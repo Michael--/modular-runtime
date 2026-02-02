@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -75,6 +75,7 @@ type aggregateServer struct {
 
 func (s *aggregateServer) Aggregate(stream pipelinepb.AggregateService_AggregateServer) error {
 	stats := make(map[string]*aggregateStats)
+	workItemResults := make([]*WorkItemResult, 0)
 	metrics := &ServiceMetrics{serviceName: "aggregate-service"}
 
 	for {
@@ -104,16 +105,7 @@ func (s *aggregateServer) Aggregate(stream pipelinepb.AggregateService_Aggregate
 		// Check if this is a WorkItem
 		if event.Type == "work-item" {
 			if workResult, err := processEnrichedWorkItem(event.User); err == nil {
-				resultJSON, _ := json.Marshal(workResult)
-				key := "work-item-results"
-				entry := stats[key]
-				if entry == nil {
-					entry = &aggregateStats{}
-					stats[key] = entry
-				}
-				entry.count += 1
-				entry.sum += int64(workResult.FinalScore)
-				log.Printf("Processed WorkItem: %s", string(resultJSON))
+				workItemResults = append(workItemResults, workResult)
 			}
 			metrics.recordProcessing(float64(time.Since(processStart).Microseconds()) / 1000.0)
 			continue
@@ -130,6 +122,21 @@ func (s *aggregateServer) Aggregate(stream pipelinepb.AggregateService_Aggregate
 		entry.count += 1
 		entry.sum += event.Value
 		metrics.recordProcessing(float64(time.Since(processStart).Microseconds()) / 1000.0)
+	}
+
+	// Send WorkItem results as individual results
+	for _, item := range workItemResults {
+		result := &pipelinepb.AggregateResult{
+			Key:   item.ID,
+			Count: 0,
+			Sum:   int64(math.Round(item.FinalScore)),
+			Avg:   item.FinalScore,
+		}
+		sendStart := time.Now()
+		if err := stream.Send(&pipelinepb.AggregateResponse{Result: result}); err != nil {
+			return err
+		}
+		metrics.recordSend(float64(time.Since(sendStart).Microseconds()) / 1000.0)
 	}
 
 	for key, value := range stats {
@@ -157,6 +164,7 @@ func (s *aggregateServer) Aggregate(stream pipelinepb.AggregateService_Aggregate
 
 func (s *aggregateServer) AggregateBatch(stream pipelinepb.AggregateService_AggregateBatchServer) error {
 	stats := make(map[string]*aggregateStats)
+	workItemResults := make([]*WorkItemResult, 0)
 	metrics := &ServiceMetrics{serviceName: "aggregate-service"}
 
 	for {
@@ -188,14 +196,7 @@ func (s *aggregateServer) AggregateBatch(stream pipelinepb.AggregateService_Aggr
 			// Check if this is a WorkItem
 			if event.Type == "work-item" {
 				if workResult, err := processEnrichedWorkItem(event.User); err == nil {
-					key := "work-item-results"
-					entry := stats[key]
-					if entry == nil {
-						entry = &aggregateStats{}
-						stats[key] = entry
-					}
-					entry.count += 1
-					entry.sum += int64(workResult.FinalScore)
+					workItemResults = append(workItemResults, workResult)
 				}
 				continue
 			}
@@ -217,7 +218,18 @@ func (s *aggregateServer) AggregateBatch(stream pipelinepb.AggregateService_Aggr
 		)
 	}
 
-	results := make([]*pipelinepb.AggregateResult, 0, len(stats))
+	results := make([]*pipelinepb.AggregateResult, 0, len(stats)+len(workItemResults))
+
+	// Add WorkItem results as individual results
+	for _, item := range workItemResults {
+		results = append(results, &pipelinepb.AggregateResult{
+			Key:   item.ID,
+			Count: 0,
+			Sum:   int64(math.Round(item.FinalScore)),
+			Avg:   item.FinalScore,
+		})
+	}
+
 	for key, value := range stats {
 		avg := 0.0
 		if value.count > 0 {

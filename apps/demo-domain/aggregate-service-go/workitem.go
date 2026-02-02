@@ -39,7 +39,7 @@ func processEnrichedWorkItem(enrichedJSON string) (*WorkItemResult, error) {
 
 	// CPU-intensive iterations
 	finalScore := 0.0
-	iterations := 500
+	iterations := 50
 	for i := 0; i < iterations; i++ {
 		finalScore += (item.Score + eigenSum) * float64(i+1) * 0.001
 	}
