@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { setTimeout } from 'node:timers'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { format } from 'node:util'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const shutdownTimeoutMs = 2500
@@ -14,6 +15,37 @@ const ansi = {
   colors: ['\x1b[36m', '\x1b[32m', '\x1b[33m', '\x1b[34m', '\x1b[35m', '\x1b[31m'],
 }
 const processColors = new Map()
+
+const colorizePrefix = (name) => {
+  let color = processColors.get(name)
+  if (!color) {
+    color = ansi.colors[processColors.size % ansi.colors.length]
+    processColors.set(name, color)
+  }
+  return `${color}[${name}]${ansi.reset}`
+}
+
+const emitPrefixedLine = (prefix, line, isError = false) => {
+  const output = isError ? console.error : console.log
+  output(`${prefix} ${line}`)
+}
+
+const emitPrefixedMessage = (prefix, message, isError = false) => {
+  const lines = String(message).split(/\r?\n/u)
+  for (const line of lines) {
+    emitPrefixedLine(prefix, line, isError)
+  }
+}
+
+const runnerPrefix = colorizePrefix('runner')
+
+const logRunner = (...args) => {
+  emitPrefixedMessage(runnerPrefix, format(...args))
+}
+
+const errorRunner = (...args) => {
+  emitPrefixedMessage(runnerPrefix, format(...args), true)
+}
 
 const defaultConfig = {
   count: 100000,
@@ -63,7 +95,7 @@ const parseArgs = (argv) => {
     const arg = argv[i]
 
     if (arg === '--help' || arg === '-h') {
-      console.log(usage)
+      logRunner(usage)
       process.exit(0)
     }
 
@@ -148,11 +180,21 @@ const parseArgs = (argv) => {
 
 const execCommand = (command, args, opts = {}) => {
   return new Promise((resolve, reject) => {
-    console.log(`→ ${command} ${args.join(' ')}`)
+    const { name, ...spawnOpts } = opts
+    const prefix = colorizePrefix(name ?? command)
+    emitPrefixedLine(prefix, `→ ${command} ${args.join(' ')}`)
     const child = spawn(command, args, {
       cwd: repoRoot,
-      stdio: 'inherit',
-      ...opts,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...spawnOpts,
+    })
+
+    streamLines(child.stdout, (line) => {
+      emitPrefixedLine(prefix, line)
+    })
+
+    streamLines(child.stderr, (line) => {
+      emitPrefixedLine(prefix, line, true)
     })
 
     child.on('close', (code) => {
@@ -167,15 +209,6 @@ const execCommand = (command, args, opts = {}) => {
   })
 }
 
-const colorizePrefix = (name) => {
-  let color = processColors.get(name)
-  if (!color) {
-    color = ansi.colors[processColors.size % ansi.colors.length]
-    processColors.set(name, color)
-  }
-  return `${color}[${name}]${ansi.reset}`
-}
-
 const streamLines = (stream, onLine) => {
   let buffer = ''
   stream.on('data', (data) => {
@@ -183,9 +216,6 @@ const streamLines = (stream, onLine) => {
     const lines = buffer.split(/\r?\n/u)
     buffer = lines.pop() ?? ''
     for (const line of lines) {
-      if (line.length === 0) {
-        continue
-      }
       onLine(line)
     }
   })
@@ -197,7 +227,7 @@ const streamLines = (stream, onLine) => {
 }
 
 const startService = (name, command, args, env = {}) => {
-  console.log(`→ Starting ${name}...`)
+  logRunner(`→ Starting ${name}...`)
   const child = spawn(command, args, {
     cwd: repoRoot,
     env: { ...process.env, ...env },
@@ -212,16 +242,16 @@ const startService = (name, command, args, env = {}) => {
     if (line.includes('listening') || line.includes('running')) {
       ready = true
     }
-    console.log(`${prefix} ${line}`)
+    emitPrefixedLine(prefix, line)
   })
 
   streamLines(child.stderr, (line) => {
-    console.error(`${prefix} ${line}`)
+    emitPrefixedLine(prefix, line, true)
   })
 
   child.on('close', (code) => {
     if (code !== 0 && code !== null) {
-      console.error(`[${name}] exited with code ${code}`)
+      emitPrefixedLine(prefix, `exited with code ${code}`, true)
     }
   })
 
@@ -245,16 +275,16 @@ const signalProcess = (child, signal) => {
   try {
     child.kill(signal)
   } catch (error) {
-    console.error(`[cleanup] Failed to send ${signal}:`, error)
+    errorRunner(`[cleanup] Failed to send ${signal}:`, error)
   }
 }
 
 const main = async () => {
   const config = parseArgs(process.argv.slice(2))
 
-  console.log('=== Split Pipeline Demo ===')
-  console.log('Config:', config)
-  console.log()
+  logRunner('=== Split Pipeline Demo ===')
+  logRunner('Config:', config)
+  logRunner('')
 
   const services = []
 
@@ -265,10 +295,10 @@ const main = async () => {
       return
     }
     cleaning = true
-    console.log(`\n\nShutting down services (${reason})...`)
+    logRunner(`\n\nShutting down services (${reason})...`)
     if (error) {
       const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
-      console.error(`[cleanup] ${message}`)
+      errorRunner(`[cleanup] ${message}`)
     }
     for (const service of services) {
       signalProcess(service, 'SIGTERM')
@@ -291,7 +321,7 @@ const main = async () => {
   try {
     // Step 0: Build if needed
     if (config.build) {
-      console.log('Step 0: Building services...')
+      logRunner('Step 0: Building services...')
       await execCommand('pnpm', [
         '-r',
         '--filter',
@@ -300,13 +330,13 @@ const main = async () => {
         './apps/demo-domain/pipeline-orchestrator',
         'run',
         'build',
-      ])
-      console.log('✓ Build complete\n')
+      ], { name: 'build' })
+      logRunner('✓ Build complete\n')
     }
 
     // Step 1: Generate events if needed
     if (config.generate) {
-      console.log('Step 1: Generating events...')
+      logRunner('Step 1: Generating events...')
       await execCommand('node', [
         'apps/demo-domain/event-generator/dist/event-generator.js',
         '--count',
@@ -319,14 +349,14 @@ const main = async () => {
         config.types,
         '--output',
         config.input,
-      ])
-      console.log('✓ Events generated\n')
+      ], { name: 'generator' })
+      logRunner('✓ Events generated\n')
     } else {
-      console.log('Step 1: Skipping generator (using existing events.ndjson)\n')
+      logRunner('Step 1: Skipping generator (using existing events.ndjson)\n')
     }
 
     // Step 2: Start services
-    console.log('Step 2: Starting services...')
+    logRunner('Step 2: Starting services...')
 
     const ingest = startService('ingest', 'node', [
       'apps/demo-domain/ingest-service/dist/ingest-service.js',
@@ -362,10 +392,10 @@ const main = async () => {
     services.push(sink.child)
     await sleep(1000)
 
-    console.log('✓ All services started\n')
+    logRunner('✓ All services started\n')
 
     // Step 3: Run pipeline orchestrator
-    console.log('Step 3: Running pipeline...')
+    logRunner('Step 3: Running pipeline...')
 
     const orchestratorArgs = [
       'apps/demo-domain/pipeline-orchestrator/dist/pipeline-orchestrator.js',
@@ -392,12 +422,12 @@ const main = async () => {
       orchestratorArgs.push('--iterations', String(config.iterations))
     }
 
-    await execCommand('node', orchestratorArgs)
+    await execCommand('node', orchestratorArgs, { name: 'orchestrator' })
 
-    console.log('\n✓ Pipeline complete!')
+    logRunner('\n✓ Pipeline complete!')
     cleanup('complete')
   } catch (err) {
-    console.error('Error:', err)
+    errorRunner('Error:', err)
     cleanup('error', err)
   }
 }
