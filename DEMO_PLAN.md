@@ -63,7 +63,7 @@ Eine **anschauliche Demo-Umgebung**, die zeigt wie ein polyglot Service-Runtime 
     ┌───▼──────────────────▼─────────▼──────────────┐
     │         Application Services                  │
     │  (Calculator, Pipeline, Custom Services)      │
-    │    with gRPC Interceptors for auto-tracking   │
+    │ with explicit registration + activity reporting│
     └──────────────────────────────────────────────┘
         ▲                 ▲
         │                 │
@@ -347,6 +347,7 @@ class TopologyReporter {
   private serviceId: string
   private heartbeatInterval: number
   private heartbeatSeq = 0
+  private activityStream?: ReturnType<TopologyClient['reportActivity']>
 
   async register(serviceName: string, serviceType: ServiceType) {
     const handle = await this.client.registerService({
@@ -364,6 +365,7 @@ class TopologyReporter {
     this.heartbeatInterval = handle.heartbeatIntervalMs
 
     this.startHeartbeat()
+    this.activityStream = this.client.reportActivity()
   }
 
   private startHeartbeat() {
@@ -383,7 +385,7 @@ class TopologyReporter {
 
   reportActivity(targetService: string, method: string, latencyMs: number) {
     // Optional: Batch und throttle
-    this.client.reportActivity({
+    this.activityStream?.write({
       serviceId: this.serviceId,
       targetService,
       type: ActivityType.RESPONSE_RECEIVED,
@@ -1050,63 +1052,55 @@ const server = new Server({
 
 ### 🎯 Umsetzungsempfehlung (REVIDIERT)
 
-**Die Nachteile der Proxy-Variante sind AKZEPTABEL weil**:
-
-1. ✅ **Kein Code-Change** → Riesiger Vorteil für Multi-Language/Legacy
-2. ✅ **Opt-In nur für Debug** → SPOF nur wenn aktiv (temporär)
-3. ✅ **Selektiv in Production** → Nur low-RPS Services (Admin/Config)
-4. ✅ **Hybrid-Support** → Proxy UND Heartbeat parallel möglich
+**Default**: Heartbeat-basiert (Variante 1) als Basis.  
+**Optional**: Proxy/Hybrid nur für Demos, Legacy oder CI.
 
 ---
 
-#### **Neue Empfehlung: Start mit Hybrid (Variante 0b)** 🚀
+#### **Neue Empfehlung: Start mit Heartbeat (Variante 1)** ⭐
 
-**Warum Hybrid zuerst?**
+**Warum Heartbeat zuerst?**
 
-1. **Flexibility**: Proxy für Legacy/Debug, Heartbeat für Production
-2. **Demo-Wow**: "Zero Code Change" beeindruckt
-3. **Production-Ready**: Heartbeat für kritische Services
-4. **Best-of-Both**: Maximale Optionen, minimale Einschränkungen
+1. **Klarer Zustand**: Echte Liveness-Detection ohne Proxy-SPOF
+2. **Geringe Komplexität**: Ein Mechanismus, gleiche Semantik in allen Sprachen
+3. **Skalierbar**: Kein Proxy-Bottleneck bei High-RPS
+4. **Debuggbar**: Explizite Registrierung + Heartbeat
 
 **Implementation-Reihenfolge**:
 
-**Phase 1** (Week 1-2): **Proxy-Layer zuerst** 🎯
+**Phase 1** (Week 1-2): **Heartbeat-Core** 🎯
 
-- ✅ Warum? Schneller sichtbarer Wert, keine Client-Änderungen
-- Proto-Reflection/Dynamic Proxy
-- Broker-Integration (Routing)
-- Calculator-Demo ohne Code-Änderungen
-- Dashboard zeigt sofort Connections
+- Proto (RegisterService, Heartbeat, ReportActivity)
+- Topology Service + Timeout-Handling
+- TS Reporter + optional Activity-Batching
 
-**Phase 2** (Week 3): **Heartbeat hinzufügen**
+**Phase 2** (Week 3): **Multi-Language + Dashboard**
 
-- Lightweight Heartbeat-Implementierung
-- Optional für Services die Liveness brauchen
-- Config: Per-Service `topology.mode: 'proxy' | 'heartbeat' | 'both'`
+- Rust + C++ Reporter
+- Dashboard Streaming + Graph
+- Demo-Szenarien (Multi-Client)
 
-**Phase 3** (Week 4): **Hybrid-Mode polieren**
+**Phase 3** (Optional): **Proxy/Hybrid als Add-on**
 
-- Fallback-Logik (Proxy down → direkte Calls)
-- Selektive Activation per Service
-- Dashboard zeigt beide Modi
+- Proxy-Layer für Legacy/Debug
+- Broker-Routing (opt-in)
+- Fallback-Logik bei Proxy-Ausfall
 
 **Deployment-Strategie**:
 
 ```yaml
 # Empfohlene Default-Config
 topology:
-  mode: 'hybrid'
+  mode: 'heartbeat'
   proxy:
-    enabled: true # ← Opt-In per Service
-    auto_detect_protos: true # Reflection
+    enabled: false # Optional, nur für Debug/Legacy
   heartbeat:
-    enabled: true # ← Immer aktiv (lightweight)
+    enabled: true
     interval: 5000
 
 services:
   - name: calculator-server
-    topology_mode: 'proxy' # ← Entwicklung: Proxy
-    # topology_mode: 'heartbeat' # ← Production: Direkt
+    topology_mode: 'heartbeat'
 ```
 
 ---
@@ -1153,19 +1147,9 @@ services:
 | **Customer Demos/POCs**           | ✅✅ Proxy   | "Es funktioniert einfach" - Wow-Faktor      | Demo-Mode            |
 | **Enterprise (Audit/Compliance)** | ✅✅ Hybrid  | Alle Calls getrackt, aber fallback-sicher   | Selektiv + Heartbeat |
 
-| Use Case                         | Empfehlung   | Grund                                 |
-| -------------------------------- | ------------ | ------------------------------------- |
-| **Production Services**          | ✅ Heartbeat | Kein SPOF, minimal overhead           |
-| **Schnelle Demos**               | ✅ Proxy     | Keine Code-Änderungen                 |
-| **Enterprise Demo**              | ✅ Hybrid    | Zeigt beide Ansätze                   |
-| **Development/Debugging**        | ✅ Proxy     | Schnell aktivierbar                   |
-| **High-RPS Services**            | ✅ Heartbeat | Kein Proxy-Bottleneck                 |
-| **Legacy Integration**           | ✅ Proxy     | Services können nicht geändert werden |
-| **Microservices (50+ Services)** | ✅ Heartbeat | Skaliert besser                       |
-
 ---
 
-### � Deployment-Szenarien (Praktische Nutzung)
+### Deployment-Szenarien (Praktische Nutzung)
 
 #### **Szenario A: Development/Debugging** (Empfohlen: Proxy)
 
@@ -2321,11 +2305,12 @@ function getEdgeStateColor(state: ConnectionState): string {
   switch (state) {
     case 'ACTIVE':
       return '#3b82f6' // blue (animated)
+    case 'REGISTERED':
     case 'IDLE':
       return '#94a3b8' // gray
-    case 'ESTABLISHING':
-      return '#6366f1' // indigo
-    case 'FAILED':
+    case 'STALE':
+      return '#f59e0b' // yellow
+    case 'DEAD':
       return '#ef4444' // red
     default:
       return '#d1d5db'
@@ -2335,7 +2320,7 @@ function getEdgeStateColor(state: ConnectionState): string {
 
 **gRPC Streaming (Connect)**:
 
-````tsx
+```tsx
 import { createPromiseClient } from '@connectrpc/connect'
 import { createConnectTransport } from '@connectrpc/connect-web'
 import { TopologyService } from './gen/runtime/v1/topology_connect'
@@ -2361,32 +2346,25 @@ export function useTopologyStream() {
     return () => stream.cancel()
   }, [])
 
-  return { data: topology }     | Aufwand      | Status              |
-| ----- | -------------------------------- | ------------ | ------------------- |
-| **1** | **Topology Service** ⭐          | **5-6 Tage** | 🔲 **Höchste Prio** |
-| **1** | gRPC Interceptor Package         | 2-3 Tage     | 🔲 Geplant          |
-| **1** | Health Service                   | 3-4 Tage     | 🔲 Geplant          |
-| **1** | Logger Service                   | 3-4 Tage     | 🔲 Geplant          |
-| **1** | Proto Definitions (all)          | 2 Tage       | 🔲 Geplant          |
-| **1** | Client-Integration (Calc)        | 2 Tage       | 🔲 Geplant          |
-| **2** | Load Generator                   | 4-5 Tage     | 🔲 Geplant          |
-| **2** | Chaos Injector                   | 4-5 Tage     | 🔲 Geplant          |
-| **3** | Monitoring Dashboard (Web)       | 1-2 Wochen   | 🔲 Geplant          |
-| **3** | Topology Graph (React Flow)      | 4-5 Tage     | 🔲 **Critical**     |
-| **3** | Connect Integration              | 2-3 Tage     | 🔲 Geplant          |
-| **3** | Config Service                   | 3-4 Tage     | 🔲 Optional         |
-| **3** | State Manager                    | 5-7 Tage     | 🔲 Optional         |
-| **4** | Supervisor Desktop App (Electron)| 1-2 Wochen   | 🔲 Geplant          |
-| **1** | Logger Service              | 3-4 Tage     | 🔲 Geplant          |
-| **1** | Proto Definitions (all)     | 2 Tage       | 🔲 Geplant          |
-| **1** | Client-Integration (Calc)   | 2 Tage       | 🔲 Geplant          |
-| **2** | Load Generator              | 4-5 Tage     | 🔲 Geplant          |
-| **2** | Chaos Injector              | 4-5 Tage     | 🔲 Geplant          |
-| **3** | Web UI (React + Vite)       | 1-2 Wochen   | 🔲 Geplant          |
-| **3** | Topology Graph (React Flow) | 4-5 Tage     | 🔲 **Critical**     |
-| **3** | Connect Integration         | 2-3 Tage     | 🔲 Geplant          |
-| **3** | Config Service              | 3-4 Tage     | 🔲 Optional         |
-| **3** | State Manager               | 5-7 Tage     | 🔲 Optional         |
+  return { data: topology }
+}
+```
+
+| Prio  | Thema                             | Aufwand      | Status              |
+| ----- | --------------------------------- | ------------ | ------------------- |
+| **1** | **Topology Service** ⭐           | **5-6 Tage** | 🔲 **Höchste Prio** |
+| **1** | Health Service                    | 3-4 Tage     | 🔲 Geplant          |
+| **1** | Logger Service                    | 3-4 Tage     | 🔲 Geplant          |
+| **1** | Proto Definitions (all)           | 2 Tage       | 🔲 Geplant          |
+| **1** | Client-Integration (Calc)         | 2 Tage       | 🔲 Geplant          |
+| **2** | Load Generator                    | 4-5 Tage     | 🔲 Geplant          |
+| **2** | Chaos Injector                    | 4-5 Tage     | 🔲 Geplant          |
+| **3** | Monitoring Dashboard (Web)        | 1-2 Wochen   | 🔲 Geplant          |
+| **3** | Topology Graph (React Flow)       | 4-5 Tage     | 🔲 **Critical**     |
+| **3** | Connect Integration               | 2-3 Tage     | 🔲 Geplant          |
+| **3** | Config Service                    | 3-4 Tage     | 🔲 Optional         |
+| **3** | State Manager                     | 5-7 Tage     | 🔲 Optional         |
+| **4** | Supervisor Desktop App (Electron) | 1-2 Wochen   | 🔲 Geplant          |
 
 **Gesamt**: 4-5 Wochen für vollständige Demo-Umgebung
 
@@ -2394,11 +2372,12 @@ export function useTopologyStream() {
 
 1. Topology Service (Backend für Live-Graph)
 2. **Monitoring Dashboard** (Web) + React Flow ← **Killer-Feature für Demos**
-4. Load + Chaos (Demo-Szenarien verstärken)
+3. Load + Chaos (Demo-Szenarien verstärken)
 
 **Optional/Später**:
-- Supervisor Desktop App (Electron) für Production-Entwickler-Workflow*Killer-Feature**
-4. Load + Chaos (Demo-Szenarien verstärken)
+
+- Supervisor Desktop App (Electron) für Production-Entwickler-Workflow
+- Load + Chaos (Demo-Szenarien verstärken)
 
 ---
 
@@ -2407,22 +2386,27 @@ export function useTopologyStream() {
 #### **Sprint 1: Topology Foundation** (Week 1)
 
 1. Proto erstellen (`runtime/v1/topology.proto`)
+   - RegisterService, Heartbeat, ReportActivity
+   - ServiceHandle, ConnectionState, HealthState Enums
 2. Topology Service implementieren (TypeScript)
    - In-Memory Graph (Nodes + Edges)
    - Stream-API für Live-Updates
-   - Auto-Cleanup (idle connections nach 30s)
-3. Interceptor Package erstellen
-   - `packages/interceptors/topology-interceptor.ts`
-   - Client + Server Interceptors
-   - Auto-Reporting bei jedem gRPC Call
+   - Heartbeat-Timeout-Checker
+3. TypeScript Client-Reporter
+   - Auto-Heartbeat
+   - Activity-Batching (optional)
 
 #### **Sprint 2: Integration** (Week 2)
 
 4. Calculator-Services erweitern
-   - Interceptor hinzufügen (transparent)
-   - Testen: 3 Clients gleichzeitig
+   - Explizite Registrierung + Heartbeat
+   - Optionales Activity-Reporting
 5. Broker-Integration
-   - Lookup-EventMonitoring Dashboard** (Week 3-4)
+   - Topology-Events/Lookup-Infos (falls nötig)
+6. Multi-Language Clients
+   - Rust + C++ Reporter (Heartbeat + optional Activity)
+
+#### **Sprint 3: Dashboard** (Week 3-4)
 
 7. Dashboard Setup (Vite + React + TypeScript)
    - Projekt: `apps/dashboard/`
@@ -2437,11 +2421,7 @@ export function useTopologyStream() {
     - Topology Page (Hauptfeature)
     - Health Status Panel
     - Live Logs Panel
-    - Chaos Controls (Load/Fault Injection
-   - Live-Updates via Streaming
-   - Node Styling (Health-based colors)
-   - Edge Animation (RPS-based thickness)
-10. Dashboard (Health, Logs, Chaos Controls)
+    - Chaos Controls (Load/Fault Injection)
 
 #### **Sprint 4: Demo-Szenarien** (Week 4-5)
 
@@ -2478,7 +2458,7 @@ export default (router: ConnectRouter) => {
     }
   })
 }
-````
+```
 
 ````typescript
 // Browser-Client
