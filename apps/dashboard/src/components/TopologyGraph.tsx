@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import ReactFlow, { Background, Controls, MarkerType, type Edge, type Node } from 'reactflow'
 import type { ServiceEdge, ServiceNode, TopologySnapshot } from '../types/topology'
 import {
@@ -19,6 +19,11 @@ interface GraphNodeData {
   label: JSX.Element
 }
 
+interface GraphElements {
+  nodes: Node<GraphNodeData>[]
+  edges: Edge[]
+}
+
 const createMissingNode = (serviceId: string, serviceName: string): ServiceNode => ({
   serviceId,
   serviceName,
@@ -32,8 +37,11 @@ const createMissingNode = (serviceId: string, serviceName: string): ServiceNode 
 
 const buildEdgeId = (edge: ServiceEdge): string => `${edge.sourceServiceId}::${edge.targetService}`
 
+const formatRps = (value: number): number => Number(value.toFixed(1))
+
 /** Renders the graphical topology view using React Flow. */
 export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => {
+  const stableElements = useRef<{ signature: string; elements: GraphElements } | null>(null)
   const { nodes: enrichedNodes, serviceIdByName } = useMemo(() => {
     const existingNodes = [...snapshot.nodes]
     const serviceIdByName = new Map<string, string>(
@@ -67,6 +75,21 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
     }
   }, [snapshot.edges, snapshot.nodes])
 
+  const visualSignature = useMemo(() => {
+    const nodeSignature = enrichedNodes
+      .map((node) => `${node.serviceId}|${node.serviceName}|${node.language}|${node.state}`)
+      .sort()
+      .join('||')
+    const edgeSignature = snapshot.edges
+      .map(
+        (edge) =>
+          `${edge.sourceServiceId}|${edge.targetService}|${edge.state}|${formatRps(edge.rps)}`
+      )
+      .sort()
+      .join('||')
+    return `${nodeSignature}@@${edgeSignature}`
+  }, [enrichedNodes, snapshot.edges])
+
   const positions = useMemo(() => {
     const sorted = [...enrichedNodes].sort((a, b) => a.serviceName.localeCompare(b.serviceName))
     const columns = Math.max(3, Math.ceil(Math.sqrt(sorted.length || 1)))
@@ -79,8 +102,12 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
     return positionMap
   }, [enrichedNodes])
 
-  const nodes = useMemo<Node<GraphNodeData>[]>(() => {
-    return enrichedNodes.map((node) => ({
+  const elements = useMemo<GraphElements>(() => {
+    if (stableElements.current?.signature === visualSignature) {
+      return stableElements.current.elements
+    }
+
+    const nodes = enrichedNodes.map((node) => ({
       id: node.serviceId,
       type: 'default',
       position: positions.get(node.serviceId) ?? { x: 0, y: 0 },
@@ -103,32 +130,35 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
         width: 200,
       },
     }))
-  }, [enrichedNodes, positions])
 
-  const edges = useMemo<Edge[]>(() => {
-    return snapshot.edges.map((edge) => {
+    const edges = snapshot.edges.map((edge) => {
       const targetId = serviceIdByName.get(edge.targetService) ?? edge.targetService
       const isActive = edge.state === 2
+      const roundedRps = formatRps(edge.rps)
       return {
         id: buildEdgeId(edge),
         source: edge.sourceServiceId,
         target: targetId,
-        label: edge.rps > 0 ? `${edge.rps.toFixed(1)} rps` : undefined,
+        label: roundedRps > 0 ? `${roundedRps.toFixed(1)} rps` : undefined,
         animated: isActive,
         markerEnd: { type: MarkerType.ArrowClosed },
         style: {
           stroke: getConnectionStateColor(edge.state),
-          strokeWidth: Math.min(2 + Math.log10(edge.rps + 1), 6),
+          strokeWidth: Math.min(2 + Math.log10(roundedRps + 1), 6),
         },
       }
     })
-  }, [snapshot.edges, serviceIdByName])
+
+    const next = { nodes, edges }
+    stableElements.current = { signature: visualSignature, elements: next }
+    return next
+  }, [enrichedNodes, positions, serviceIdByName, snapshot.edges, visualSignature])
 
   return (
     <div className="graph-shell">
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={elements.nodes}
+        edges={elements.edges}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         style={{ width: '100%', height: '100%' }}

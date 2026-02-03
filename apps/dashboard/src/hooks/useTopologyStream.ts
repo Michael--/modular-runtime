@@ -54,6 +54,63 @@ const upsertNode = (
 
 const edgeKey = (edge: ServiceEdge): string => `${edge.sourceServiceId}::${edge.targetService}`
 
+const areServiceNodesEqual = (left: ServiceNode, right: ServiceNode): boolean =>
+  left.serviceId === right.serviceId &&
+  left.serviceName === right.serviceName &&
+  left.serviceType === right.serviceType &&
+  left.language === right.language &&
+  left.version === right.version &&
+  left.address === right.address &&
+  left.host === right.host &&
+  left.state === right.state &&
+  left.lastHeartbeatMs === right.lastHeartbeatMs &&
+  left.lastActivityMs === right.lastActivityMs &&
+  left.health === right.health
+
+const areServiceEdgesEqual = (left: ServiceEdge, right: ServiceEdge): boolean =>
+  left.sourceServiceId === right.sourceServiceId &&
+  left.targetService === right.targetService &&
+  left.state === right.state &&
+  left.lastActivityMs === right.lastActivityMs &&
+  left.totalRequests === right.totalRequests &&
+  left.totalErrors === right.totalErrors &&
+  left.avgLatencyMs === right.avgLatencyMs &&
+  left.rps === right.rps
+
+const areSnapshotsEqual = (left: TopologySnapshot, right: TopologySnapshot): boolean => {
+  if (left === right) {
+    return true
+  }
+  if (left.nodes.length !== right.nodes.length || left.edges.length !== right.edges.length) {
+    return false
+  }
+  const leftNodes = new Map(left.nodes.map((node) => [node.serviceId, node]))
+  const rightNodes = new Map(right.nodes.map((node) => [node.serviceId, node]))
+  if (leftNodes.size !== rightNodes.size) {
+    return false
+  }
+  for (const [id, node] of leftNodes.entries()) {
+    const match = rightNodes.get(id)
+    if (!match || !areServiceNodesEqual(node, match)) {
+      return false
+    }
+  }
+
+  const leftEdges = new Map(left.edges.map((edge) => [edgeKey(edge), edge]))
+  const rightEdges = new Map(right.edges.map((edge) => [edgeKey(edge), edge]))
+  if (leftEdges.size !== rightEdges.size) {
+    return false
+  }
+  for (const [id, edge] of leftEdges.entries()) {
+    const match = rightEdges.get(id)
+    if (!match || !areServiceEdgesEqual(edge, match)) {
+      return false
+    }
+  }
+
+  return true
+}
+
 const removeEdge = (
   nodes: ServiceNode[],
   edges: ServiceEdge[],
@@ -140,8 +197,14 @@ export const useTopologyStream = (streamUrl: string = DEFAULT_STREAM_URL): Topol
     source.onmessage = (event: MessageEvent<string>) => {
       try {
         const update = JSON.parse(event.data) as TopologyUpdate
-        setSnapshot((current) => applyUpdate(current, update))
-        setLastEventMs(Date.now().toString())
+        setSnapshot((current) => {
+          const next = applyUpdate(current, update)
+          if (areSnapshotsEqual(current, next)) {
+            return current
+          }
+          setLastEventMs(Date.now().toString())
+          return next
+        })
       } catch {
         setStatus('error')
       }
