@@ -13,43 +13,15 @@ services:
     restartOnUnexpectedExit: true
     logColor: blue
 
-  - name: topology-service
+  - name: topology
     command: node
     args:
-      - apps/topology-service/dist/topology-service.js
+      - apps/topology/dist/topology.js
       - --address
       - 127.0.0.1:50053
-    cwd: ../..
-    env: {}
-    restart: none
-    maxRestarts: 5
-    restartDelay: 3000
-    restartOnUnexpectedExit: true
-    logColor: red
-
-  - name: topology-proxy
-    command: node
-    args:
-      - apps/topology-proxy/dist/topology-proxy.js
-      - --grpc-address
-      - 127.0.0.1:50053
-      - --http-port
+      - --topology-proxy-http-port
       - 50054
-    cwd: ../..
-    env: {}
-    restart: none
-    maxRestarts: 5
-    restartDelay: 3000
-    restartOnUnexpectedExit: true
-    logColor: magenta
-
-  - name: topology-reporter-proxy
-    command: node
-    args:
-      - apps/topology-reporter-proxy/dist/topology-reporter-proxy.js
-      - --topology-address
-      - 127.0.0.1:50053
-      - --http-port
+      - --topology-reporter-http-port
       - 50055
     cwd: ../..
     env: {}
@@ -57,7 +29,7 @@ services:
     maxRestarts: 5
     restartDelay: 3000
     restartOnUnexpectedExit: true
-    logColor: yellow
+    logColor: red
 
   - name: calculator-server
     command: node

@@ -1,19 +1,22 @@
 {
-  "name": "@modular-runtime/topology-service",
+  "name": "@modular-runtime/topology",
   "private": true,
   "type": "module",
   "scripts": {
     "clean": "rimraf dist",
     "build": "vite build",
     "dev": "vite build --watch",
-    "start": "node dist/topology-service.js",
+    "start": "node dist/topology.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "devDependencies": {
+  "dependencies": {
     "@grpc/grpc-js": "^1.10.9",
     "@modular-runtime/proto": "workspace:*",
+    "@modular-runtime/topology-reporter": "workspace:*"
+  },
+  "devDependencies": {
     "@types/node": "^25.1.0",
     "rimraf": "^6.1.2",
     "typescript": "^5.5.4",
