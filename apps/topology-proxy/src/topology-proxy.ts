@@ -83,6 +83,9 @@ const startWatchStream = (): void => {
   }
   watchStream = client.watchTopology(request)
   watchStream.on('data', (response) => {
+    if (!response.update) {
+      return
+    }
     broadcast(response.update)
   })
   watchStream.on('error', async (error) => {
@@ -109,10 +112,11 @@ const handleSse = async (req: IncomingMessage, res: ServerResponse): Promise<voi
   res.write('retry: 1000\n\n')
   listeners.add(res)
 
-  if (!lastSnapshot) {
-    lastSnapshot = await fetchSnapshot()
-  }
-  if (lastSnapshot) {
+  const snapshot = await fetchSnapshot()
+  if (snapshot) {
+    lastSnapshot = snapshot
+    writeEvent(res, snapshot)
+  } else if (lastSnapshot) {
     writeEvent(res, lastSnapshot)
   }
 
