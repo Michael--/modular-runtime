@@ -779,27 +779,35 @@ server.bindAsync('0.0.0.0:50051', ...) // ← Originale Adresse
 - ✅ **Automatisches Tracking** - jeder Call wird erfasst
 - ✅ **Broker-Integration** - Services "wissen" nichts von Proxy
 
-**Cons**:
+**Cons (bei Always-On-Production)**:
 
-- ❌ **Proto-Abhängigkeit** - TopologyService muss ALLE Protos kennen/laden
-- ❌ **Single Point of Failure** - Topology-Crash = alle Calls fehlschlagen
-- ❌ **Latency-Overhead** - zusätzlicher Hop bei jedem Call (~1-5ms)
-- ❌ **Komplexität** - dynamisches Proto-Loading, Reflection nötig
-- ❌ **Keine Liveness für idle Services** - nur Call-basiert (kein Heartbeat für passive Connections)
-- ❌ **Skalierung schwierig** - Proxy wird Bottleneck bei high RPS
-- ❌ **Streaming kompliziert** - Bidirectional Streams durchzureichen ist aufwendig
+- ⚠️ **Single Point of Failure** - Topology-Crash = alle Calls fehlschlagen
+  - ✅ **Mitigiert**: Nur für Debug/selektive Services, nicht dauerhaft aktiv
+- ⚠️ **Latency-Overhead** - zusätzlicher Hop bei jedem Call (~1-5ms)
+  - ✅ **Akzeptabel**: Temporär für Debugging, nicht in Production-Hotpath
+- ⚠️ **Proto-Abhängigkeit** - TopologyService muss Protos kennen
+  - ✅ **Akzeptabel**: Nur für überwachte Services, nicht alle
+- ⚠️ **Keine Liveness für idle Services** - nur Call-basiert
+  - ✅ **Lösbar**: Kombination mit Heartbeat (Hybrid-Modus)
+- ⚠️ **Skalierung schwierig** - Proxy wird Bottleneck bei high RPS
+  - ✅ **Mitigiert**: Selektiv nur für low-RPS Debug-Services
+- ⚠️ **Streaming kompliziert** - Bidirectional Streams durchzureichen
+  - ✅ **Akzeptabel**: Machbar, nur aufwendiger zu implementieren
 
 **Aufwand**: 7-10 Tage (Proto-Reflection, dynamisches Proxying, Broker-Integration)
 
 **Use Cases**:
 
 - 🎯 **Perfekt für Demos** - keine Code-Änderungen nötig
-- 🎯 **Entwicklung/Debugging** - schnell aktivierbar
-- ⚠️ **Production problematisch** - SPOF, Latency-Overhead
+- 🎯 **Entwicklung/Debugging** - schnell aktivierbar, opt-in per Service
+- 🎯 **Legacy-Integration** - Services können nicht geändert werden
+- 🎯 **CI/CD Tests** - keine Test-Änderungen
+- ⚠️ **Production (always-on) problematisch** - SPOF, Latency-Overhead
+- ✅ **Production (selektiv) akzeptabel** - nur low-RPS Admin-Services
 
 ---
 
-### Variante 0b: Hybrid Proxy + Heartbeat 🔀 **[BEST OF BOTH WORLDS?]**
+### Variante 0b: Hybrid Proxy + Heartbeat 🔀 **[BEST OF BOTH WORLDS]**
 
 **Kombination**:
 
@@ -1040,9 +1048,72 @@ const server = new Server({
 
 ---
 
-### 🎯 Umsetzungsempfehlung
+### 🎯 Umsetzungsempfehlung (REVIDIERT)
 
-#### **Für Production: Variante 1 (Heartbeat)** ⭐
+**Die Nachteile der Proxy-Variante sind AKZEPTABEL weil**:
+
+1. ✅ **Kein Code-Change** → Riesiger Vorteil für Multi-Language/Legacy
+2. ✅ **Opt-In nur für Debug** → SPOF nur wenn aktiv (temporär)
+3. ✅ **Selektiv in Production** → Nur low-RPS Services (Admin/Config)
+4. ✅ **Hybrid-Support** → Proxy UND Heartbeat parallel möglich
+
+---
+
+#### **Neue Empfehlung: Start mit Hybrid (Variante 0b)** 🚀
+
+**Warum Hybrid zuerst?**
+
+1. **Flexibility**: Proxy für Legacy/Debug, Heartbeat für Production
+2. **Demo-Wow**: "Zero Code Change" beeindruckt
+3. **Production-Ready**: Heartbeat für kritische Services
+4. **Best-of-Both**: Maximale Optionen, minimale Einschränkungen
+
+**Implementation-Reihenfolge**:
+
+**Phase 1** (Week 1-2): **Proxy-Layer zuerst** 🎯
+
+- ✅ Warum? Schneller sichtbarer Wert, keine Client-Änderungen
+- Proto-Reflection/Dynamic Proxy
+- Broker-Integration (Routing)
+- Calculator-Demo ohne Code-Änderungen
+- Dashboard zeigt sofort Connections
+
+**Phase 2** (Week 3): **Heartbeat hinzufügen**
+
+- Lightweight Heartbeat-Implementierung
+- Optional für Services die Liveness brauchen
+- Config: Per-Service `topology.mode: 'proxy' | 'heartbeat' | 'both'`
+
+**Phase 3** (Week 4): **Hybrid-Mode polieren**
+
+- Fallback-Logik (Proxy down → direkte Calls)
+- Selektive Activation per Service
+- Dashboard zeigt beide Modi
+
+**Deployment-Strategie**:
+
+```yaml
+# Empfohlene Default-Config
+topology:
+  mode: 'hybrid'
+  proxy:
+    enabled: true # ← Opt-In per Service
+    auto_detect_protos: true # Reflection
+  heartbeat:
+    enabled: true # ← Immer aktiv (lightweight)
+    interval: 5000
+
+services:
+  - name: calculator-server
+    topology_mode: 'proxy' # ← Entwicklung: Proxy
+    # topology_mode: 'heartbeat' # ← Production: Direkt
+```
+
+---
+
+#### **Alternative: Reine Varianten**
+
+**Für Production (24/7): Variante 1 (Heartbeat)** ⭐
 
 **Begründung**:
 
@@ -1050,66 +1121,37 @@ const server = new Server({
 2. ✅ Minimaler Latency-Overhead
 3. ✅ Production-Ready und robust
 4. ✅ Explizit und wartbar
-5. ✅ Funktioniert in ALLEN Sprachen gleich gut
 
-**Trade-off**: Services müssen Code ändern (akzeptabel für Production)
+**Trade-off**: Services müssen Code ändern (einmalig akzeptabel)
 
 ---
 
-#### **Für Demos/Development: Variante 0b (Hybrid Proxy+Heartbeat)** 🎭
+**Für schnelle Demos/POCs: Variante 0 (Pure Proxy)** 🎭
 
 **Begründung**:
 
-1. ✅ **Schnelle Integration** - minimale Code-Änderungen
-2. ✅ **Beeindruckend** - "es funktioniert einfach"
-3. ✅ **Liveness gesichert** - Heartbeat für idle Services
-4. ✅ **Fallback** - Proxy optional, direkte Calls möglich
-5. ⚠️ Komplexer als pure Varianten, aber zeigt "Enterprise-Features"
+1. ✅ **Schnellster Wow-Effekt** - "es funktioniert einfach"
+2. ✅ **Keine Code-Änderungen** - beeindruckt Stakeholder
+3. ✅ **Später erweiterbar** - Heartbeat kann hinzugefügt werden
 
-**Use Case**:
-
-```yaml
-# config.yaml - Demo-Modus
-topology:
-  mode: 'hybrid' # proxy + heartbeat
-  proxy:
-    enabled: true
-    services: ['CalculatorService'] # Nur Calculator proxied
-  heartbeat:
-    enabled: true
-    interval: 5000 # alle Services senden Heartbeat
-
-# config.yaml - Production-Modus
-topology:
-  mode: 'heartbeat' # nur Heartbeat
-  proxy:
-    enabled: false # Kein SPOF
-  heartbeat:
-    enabled: true
-    interval: 5000
-```
-
-**Implementation-Plan** (Hybrid):
-
-**Week 1**: Heartbeat-Basis (wie Variante 1)
-
-- Proto, Service, Client-Libraries
-- Minimaler Heartbeat-Code in Services
-
-**Week 2**: Proxy-Layer (Optional)
-
-- Dynamisches Proto-Loading
-- Broker-Integration (Proxy-Routing)
-- Fallback-Logik
-
-**Week 3**: Demo
-
-- Toggle: Proxy on/off
-- Zeige Transparenz (Proxy) vs Explizit (Heartbeat)
+**Trade-off**: Production-Einschränkungen (akzeptabel für Demos)
 
 ---
 
 #### **Vergleich: Was ist besser für welchen Zweck?**
+
+| Use Case                          | Empfehlung   | Grund                                       | Deployment           |
+| --------------------------------- | ------------ | ------------------------------------------- | -------------------- |
+| **Production Services (24/7)**    | ✅ Heartbeat | Kein SPOF, minimal overhead                 | Always-On            |
+| **Schnelle Demos**                | ✅✅ Proxy   | Keine Code-Änderungen, beeindruckend        | On-Demand            |
+| **Development/Debugging**         | ✅✅ Proxy   | Schnell aktivierbar, per Service toggle     | Opt-In (Dev-Mode)    |
+| **Legacy-Integration**            | ✅✅ Proxy   | Services können nicht geändert werden       | Selektiv             |
+| **High-RPS Services (Prod)**      | ✅ Heartbeat | Kein Proxy-Bottleneck                       | Always-On            |
+| **Low-RPS Services (Debug)**      | ✅ Proxy     | Overhead akzeptabel                         | Opt-In               |
+| **Microservices (50+ Services)**  | ✅ Hybrid    | Core-Services Heartbeat, Rest optional      | Mixed                |
+| **CI/CD Integration Tests**       | ✅✅ Proxy   | Keine Test-Änderungen, automatisch getrackt | Per Pipeline-Config  |
+| **Customer Demos/POCs**           | ✅✅ Proxy   | "Es funktioniert einfach" - Wow-Faktor      | Demo-Mode            |
+| **Enterprise (Audit/Compliance)** | ✅✅ Hybrid  | Alle Calls getrackt, aber fallback-sicher   | Selektiv + Heartbeat |
 
 | Use Case                         | Empfehlung   | Grund                                 |
 | -------------------------------- | ------------ | ------------------------------------- |
@@ -1123,7 +1165,175 @@ topology:
 
 ---
 
-### 🔬 Technische Deep-Dives
+### � Deployment-Szenarien (Praktische Nutzung)
+
+#### **Szenario A: Development/Debugging** (Empfohlen: Proxy)
+
+```yaml
+# config.yaml - Dev-Mode
+topology:
+  mode: 'proxy'
+  proxy:
+    enabled: true
+    services: ['CalculatorService', 'PipelineService'] # Nur diese überwachen
+    port: 50053
+  heartbeat:
+    enabled: false # Optional: Nur Proxy
+
+services:
+  - name: calculator-server
+    command: node dist/server.js
+    # ← KEINE Änderungen! Proxy transparent
+```
+
+**Workflow**:
+
+1. Developer startet Supervisor mit Proxy-Mode
+2. Services laufen unverändert
+3. Dashboard zeigt alle Calls live
+4. Debugging fertig → `topology.mode: 'off'` → Proxy deaktiviert
+
+---
+
+#### **Szenario B: Production (24/7)** (Empfohlen: Heartbeat)
+
+```yaml
+# config.yaml - Production
+topology:
+  mode: 'heartbeat'
+  proxy:
+    enabled: false # Kein SPOF-Risiko
+  heartbeat:
+    enabled: true
+    interval: 5000
+
+services:
+  - name: calculator-server
+    command: node dist/server.js
+    env:
+      TOPOLOGY_ENABLED: 'true' # ← Services senden Heartbeat
+```
+
+**Services müssen angepasst werden** (einmalig):
+
+```typescript
+// calculator-server.ts
+if (process.env.TOPOLOGY_ENABLED) {
+  const topology = new TopologyReporter('127.0.0.1', 50053)
+  await topology.register('calculator-server', ServiceType.SERVER)
+}
+```
+
+---
+
+#### **Szenario C: Hybrid (Best of Both)** (Empfohlen: Enterprise)
+
+```yaml
+# config.yaml - Enterprise
+topology:
+  mode: 'hybrid'
+  proxy:
+    enabled: true
+    services: ['LegacyService', 'ThirdPartyAPI'] # Nur diese proxied
+    port: 50053
+  heartbeat:
+    enabled: true
+    interval: 5000
+
+services:
+  # Legacy Service (kann nicht geändert werden) → Proxy
+  - name: legacy-service
+    command: ./legacy-binary
+    topology:
+      mode: 'proxy' # Broker routet durch Topology
+
+  # Modern Service (mit Heartbeat) → Direkt
+  - name: calculator-server
+    command: node dist/server.js
+    topology:
+      mode: 'heartbeat' # Direkter Call, sendet Heartbeat
+```
+
+**Ergebnis**:
+
+- Legacy-Services: Transparent getrackt via Proxy
+- Modern Services: Direkte Calls, Heartbeat für Liveness
+- Dashboard zeigt beide gleichzeitig
+
+---
+
+#### **Szenario D: CI/CD Integration** (Empfohlen: Proxy)
+
+```yaml
+# docker-compose.test.yml
+services:
+  topology:
+    image: modular-runtime/topology-service
+    environment:
+      MODE: 'proxy'
+      PROXIED_SERVICES: 'CalculatorService,PipelineService'
+    ports:
+      - '50053:50053'
+
+  calculator-server:
+    image: calculator-server:test
+    # ← Keine Test-Änderungen!
+
+  integration-tests:
+    image: integration-tests
+    environment:
+      CALCULATOR_ADDRESS: 'topology:50053' # ← Broker gibt Proxy zurück
+    depends_on:
+      - topology
+      - calculator-server
+```
+
+**Vorteil**: Tests bleiben unverändert, Topology-Daten automatisch erfasst
+
+---
+
+#### **Szenario E: Selektives Production-Monitoring** (Empfohlen: Hybrid)
+
+```yaml
+# config.yaml - Production mit selektivem Proxy
+topology:
+  mode: 'hybrid'
+  proxy:
+    enabled: true
+    services:
+      # Nur low-RPS Admin-Services proxied
+      - 'AdminService'
+      - 'ConfigService'
+      # High-RPS Services NICHT proxied (Performance)
+      # - 'CalculatorService' (direkt)
+    port: 50053
+  heartbeat:
+    enabled: true
+    interval: 5000 # Alle Services senden Heartbeat
+
+services:
+  # High-RPS → Direkt (kein Proxy-Overhead)
+  - name: calculator-server
+    command: node dist/server.js
+    topology:
+      mode: 'heartbeat' # Heartbeat only
+
+  # Low-RPS Admin → Proxied (detailliertes Tracking)
+  - name: admin-service
+    command: node dist/admin-server.js
+    topology:
+      mode: 'proxy' # Proxy für audit trail
+```
+
+**Ergebnis**:
+
+- Performance-kritische Services: Kein Overhead
+- Admin/Config-Services: Vollständig getrackt (Compliance)
+- Heartbeat: Liveness für alle
+
+---
+
+### �🔬 Technische Deep-Dives
 
 #### **Challenge 1: Dynamisches Proto-Loading (Proxy-Variante)**
 
@@ -1300,19 +1510,72 @@ topologyClient.setProxyMode({
 
 ---
 
-### 💡 Finale Empfehlung
+### 💡 Finale Empfehlung (REVIDIERT mit Opt-In-Perspektive)
 
-**Wenn Zeit/Budget knapp**: ✅ **Variante 1 (Heartbeat)** - Production-Ready, klar
+**Die Nachteile sind AKZEPTABEL weil**:
 
-**Wenn Demo-Wow-Faktor wichtig**: ✅ **Variante 0b (Hybrid)** - Transparenz + Liveness
+1. ✅ **Kein Code-Change** → Riesiger Vorteil für Multi-Language/Legacy
+2. ✅ **Opt-In nur für Debug** → SPOF nur wenn aktiv (temporär)
+3. ✅ **Selektiv in Production** → Nur low-RPS Services (Admin/Config)
+4. ✅ **Hybrid-Support** → Proxy UND Heartbeat parallel möglich
 
-**Wenn nur Proof-of-Concept**: ✅ **Variante 0 (Pure Proxy)** - Schnell, beeindruckend
+**Neue Empfehlung**:
 
-**Für dein Projekt empfehle ich**:
+#### **Für dein Projekt: Start mit Hybrid (Variante 0b)** 🚀
 
-1. **Start mit Heartbeat** (Variante 1) - Solide Basis
-2. **Optional: Proxy-Layer später hinzufügen** (backward-compatible)
-3. **Demo-Modus** zeigt beide: "Heartbeat für Production, Proxy für Quick-Integration"
+**Warum Hybrid zuerst?**
+
+1. **Flexibility**: Proxy für Legacy/Debug, Heartbeat für Production
+2. **Demo-Wow**: "Zero Code Change" beeindruckt
+3. **Production-Ready**: Heartbeat für kritische Services
+4. **Best-of-Both**: Maximale Optionen, minimale Einschränkungen
+
+**Implementation-Reihenfolge**:
+
+**Phase 1** (Week 1-2): **Proxy-Layer zuerst** 🎯
+
+- Warum? Schneller sichtbarer Wert, keine Client-Änderungen
+- Proto-Reflection/Dynamic Proxy
+- Broker-Integration (Routing)
+- Calculator-Demo ohne Code-Änderungen
+- Dashboard zeigt sofort Connections
+
+**Phase 2** (Week 3): **Heartbeat hinzufügen**
+
+- Lightweight Heartbeat-Implementierung
+- Optional für Services die Liveness brauchen
+- Config: Per-Service `topology.mode: 'proxy' | 'heartbeat' | 'both'`
+
+**Phase 3** (Week 4): **Hybrid-Mode polieren**
+
+- Fallback-Logik (Proxy down → direkte Calls)
+- Selektive Activation per Service
+- Dashboard zeigt beide Modi
+
+**Deployment-Strategie**:
+
+```yaml
+# Empfohlene Default-Config
+topology:
+  mode: 'hybrid'
+  proxy:
+    enabled: true # ← Opt-In per Service
+    auto_detect_protos: true # Reflection
+  heartbeat:
+    enabled: true # ← Immer aktiv (lightweight)
+    interval: 5000
+
+services:
+  - name: calculator-server
+    topology_mode: 'proxy' # ← Entwicklung: Proxy
+    # topology_mode: 'heartbeat' # ← Production: Direkt
+```
+
+**Wenn Zeit/Budget knapp**: ✅ **Variante 0 (Pure Proxy)** - Schnell, beeindruckend, später Heartbeat optional
+
+**Wenn Production-Ready kritisch**: ✅ **Variante 0b (Hybrid)** - Proxy für Legacy, Heartbeat für Core
+
+**Wenn nur Proof-of-Concept**: ✅ **Variante 0 (Pure Proxy)** - "Es funktioniert einfach"
 
 ---
 
