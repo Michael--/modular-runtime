@@ -1,4 +1,5 @@
 mod proto;
+mod topology_reporter;
 
 use clap::Parser;
 use proto::broker::v1::{
@@ -7,12 +8,16 @@ use proto::broker::v1::{
 use proto::calculator::v1::{
   calculator_service_client::CalculatorServiceClient, CalculateRequest, Operation,
 };
+use proto::runtime::v1::{ActivityType, ServiceLanguage, ServiceType};
 use rand::Rng;
 use std::{error::Error, time::Duration};
+use tokio::time::Instant;
 use tonic::transport::Channel;
+use topology_reporter::{ActivityReport, TopologyReporter, TopologyReporterOptions};
 
 const BROKER_ADDRESS_ENV: &str = "BROKER_ADDRESS";
 const DEFAULT_BROKER_ADDRESS: &str = "127.0.0.1:50051";
+const DEFAULT_TOPOLOGY_ADDRESS: &str = "127.0.0.1:50053";
 const SERVICE_NAME: &str = "calculator.v1.CalculatorService";
 const DEFAULT_ROLE: &str = "default";
 
@@ -23,6 +28,14 @@ struct Args {
     /// Broker address in the format host:port
     #[arg(long, default_value = DEFAULT_BROKER_ADDRESS)]
     broker_address: String,
+
+    /// Topology service address in the format host:port
+    #[arg(long, default_value = DEFAULT_TOPOLOGY_ADDRESS)]
+    topology_address: String,
+
+    /// Disable topology reporting
+    #[arg(long)]
+    no_topology: bool,
 }
 
 #[tokio::main]
@@ -32,6 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
   println!("Starting Rust calculator client...");
 
   let broker_address = std::env::var(BROKER_ADDRESS_ENV).unwrap_or(args.broker_address);
+  let topology_enabled = !args.no_topology;
 
   let broker_url = normalize_broker_url(&broker_address);
   let mut broker = BrokerServiceClient::connect(broker_url).await?;
@@ -40,11 +54,57 @@ async fn main() -> Result<(), Box<dyn Error>> {
   println!("Connecting to calculator service at {}", calculator_url);
   let mut calculator = CalculatorServiceClient::connect(calculator_url).await?;
 
+  let mut topology_reporter: Option<TopologyReporter> = None;
+
+  if topology_enabled {
+    let topology_address = std::env::var("TOPOLOGY_ADDRESS").unwrap_or(args.topology_address);
+    println!("Connecting to topology service at {}", topology_address);
+
+    let hostname = hostname::get()
+      .ok()
+      .and_then(|h| h.into_string().ok())
+      .unwrap_or_else(|| "unknown".to_string());
+
+    let options = TopologyReporterOptions {
+      topology_address,
+      service_name: "calculator-client-rust".to_string(),
+      service_type: ServiceType::Client,
+      language: ServiceLanguage::Rust,
+      version: Some(env!("CARGO_PKG_VERSION").to_string()),
+      address: None,
+      host: Some(hostname),
+      enable_activity: true,
+    };
+
+    match TopologyReporter::new(options).await {
+      Ok(mut reporter) => {
+        match reporter.register().await {
+          Ok(handle) => {
+            println!(
+              "Registered with topology service: serviceId={}, heartbeat={}ms",
+              handle.service_id, handle.heartbeat_interval_ms
+            );
+            topology_reporter = Some(reporter);
+          }
+          Err(e) => {
+            eprintln!("Failed to register with topology service: {}", e);
+          }
+        }
+      }
+      Err(e) => {
+        eprintln!("Failed to connect to topology service: {}", e);
+      }
+    }
+  }
+
   let mut interval = tokio::time::interval(Duration::from_secs(2));
   loop {
     tokio::select! {
       _ = tokio::signal::ctrl_c() => {
         println!("Received Ctrl+C, shutting down.");
+        if let Some(mut reporter) = topology_reporter {
+          let _ = reporter.shutdown().await;
+        }
         break;
       }
       _ = interval.tick() => {
@@ -55,13 +115,40 @@ async fn main() -> Result<(), Box<dyn Error>> {
           operation: op as i32,
         };
 
+        let started_at = Instant::now();
         match calculator.calculate(request).await {
           Ok(response) => {
+            let latency_ms = started_at.elapsed().as_millis() as i32;
             let result = response.into_inner().result;
             println!("calculate({:.6} {} {:.6}) => {:.6}", a, operation_symbol(op), b, result);
+
+            if let Some(ref reporter) = topology_reporter {
+              reporter.report_activity(ActivityReport {
+                target_service: "calculator-server".to_string(),
+                activity_type: ActivityType::ResponseReceived,
+                timestamp_ms: None,
+                latency_ms: Some(latency_ms),
+                method: Some("CalculatorService/Calculate".to_string()),
+                success: Some(true),
+                error_message: None,
+              });
+            }
           }
           Err(error) => {
+            let latency_ms = started_at.elapsed().as_millis() as i32;
             eprintln!("Calculation failed: {}", error.message());
+
+            if let Some(ref reporter) = topology_reporter {
+              reporter.report_activity(ActivityReport {
+                target_service: "calculator-server".to_string(),
+                activity_type: ActivityType::ResponseReceived,
+                timestamp_ms: None,
+                latency_ms: Some(latency_ms),
+                method: Some("CalculatorService/Calculate".to_string()),
+                success: Some(false),
+                error_message: Some(error.message().to_string()),
+              });
+            }
           }
         }
       }

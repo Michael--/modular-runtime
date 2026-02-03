@@ -2,19 +2,28 @@
 // The prost and tonic plugins write into the same files.
 
 pub mod broker {
-  pub mod v1 {
-    include!(concat!(
-      env!("CARGO_MANIFEST_DIR"),
-      "/../../packages/proto/generated/rust/broker.v1.rs"
-    ));
-  }
+    pub mod v1 {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/proto/generated/rust/broker.v1.rs"
+        ));
+    }
 }
 
 pub mod calculator {
-  pub mod v1 {
-    include!(concat!(
-      env!("CARGO_MANIFEST_DIR"),
-      "/../../packages/proto/generated/rust/calculator.v1.rs"
-    ));
-  }
+    pub mod v1 {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/proto/generated/rust/calculator.v1.rs"
+        ));
+    }
+}
+
+pub mod runtime {
+    pub mod v1 {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packages/proto/generated/rust/runtime.v1.rs"
+        ));
+    }
 }
