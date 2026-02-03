@@ -208,6 +208,21 @@ message HeartbeatRequest {
   string service_id = 1;
   int64 sequence = 2;              // Monoton steigend
   optional ServiceMetrics metrics = 3; // Optional: CPU, Memory
+  optional ApplicationHealth health = 4; // Optional: Application-Level Health
+}
+
+message ApplicationHealth {
+  HealthState state = 1;           // STARTING, HEALTHY, DEGRADED, UNHEALTHY
+  optional string message = 2;     // Details: "High CPU", "DB connection lost"
+  optional int32 error_count = 3;  // Anzahl recent errors
+}
+
+enum HealthState {
+  HEALTH_UNKNOWN = 0;
+  STARTING = 1;       // Service startet noch
+  HEALTHY = 2;        // Alles ok
+  DEGRADED = 3;       // Funktioniert, aber Performance-Probleme
+  UNHEALTHY = 4;      // Kritische Probleme
 }
 
 message HeartbeatResponse {
@@ -715,14 +730,16 @@ const server = new Server({
 
 1. Proto-Definition (`runtime/v1/topology.proto`)
    - RegisterService, Heartbeat, ReportActivity
-   - ServiceHandle, ConnectionState Enums
+   - ServiceHandle, ConnectionState, HealthState Enums
+   - ApplicationHealth in HeartbeatRequest (integriert!)
 2. Topology Service (TypeScript)
    - Service Registry (Map)
    - Heartbeat-Timeout-Checker (5s Interval)
    - Activity-Aggregation (1s Throttle)
+   - Health-State-Tracking (via Heartbeat)
 3. TypeScript Client-Library
    - TopologyReporter-Klasse
-   - Auto-Heartbeat
+   - Auto-Heartbeat mit Health-Reporting
    - Activity-Batching
 
 **Deliverables**: Core-Funktionalität für TS-Services
@@ -775,7 +792,7 @@ const server = new Server({
 - Go Client-Library
 - Python Client-Library
 - Hybrid Interceptor-Support (falls gewünscht)
-- Health Service Integration (State-Mapping)
+- Dedizierter Health Service (falls Topology-Integration nicht ausreicht)
 - Metrics (Prometheus Export)
 
 ---
@@ -800,15 +817,18 @@ const server = new Server({
 
 ---
 
-### 1.1 Health Service ⭐⭐⭐⭐⭐
+### 1.1 Health Service ⭐ **[OPTIONAL - Bereits in Topology integriert!]**
 
-**Zweck**: Liveness/Readiness-Checks für alle Services
+**Status**: **NICHT MEHR NÖTIG** - Health-Tracking via Topology Service Heartbeat!
 
-**Demo-Wert**:
+**Warum optional?**
 
-- Status-Dashboard (grün/gelb/rot)
-- Service-Status-History-Timeline
-- Automatic Unhealthy Service Detection
+- Topology Service Heartbeat enthält bereits `ApplicationHealth`
+- Liveness via Connection State (REGISTERED, STALE, DEAD)
+- Application Health via `HealthState` im Heartbeat
+- Vermeidet Redundanz und zusätzliche Komplexität
+
+**Falls doch gewünscht** (für dedizierte Health-Checks ohne Topology):
 
 **Proto**: `packages/proto/runtime/v1/health.proto`
 
