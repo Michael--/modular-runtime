@@ -1,5 +1,25 @@
 # Demo Plan: Runtime Services & UI
 
+## ⚠️ WICHTIGER HINWEIS: Topology Service Refactoring
+
+**Stand**: 2026-02-03
+
+Der Topology Service wurde **komplett neu konzipiert**:
+
+✅ **Heartbeat-basiert** statt Interceptor-Magic  
+✅ **Expliziter Multi-Language-Support** (TS, Rust, C++, Go, Python)  
+✅ **Keine "Leichen"** in der Live-View (Timeout-basierte Cleanup)  
+✅ **Type-Safe** Proto-Definitionen  
+✅ **Throttled Updates** für skalierbare Performance
+
+📖 **Dokumentation**:
+
+- [Detailliertes Design-Dokument](docs-site/docs/topology-refactoring.md)
+- [Executive Summary](docs-site/docs/topology-summary.md)
+- [Timeout & Throttling Tuning](docs-site/docs/topology-tuning.md)
+
+---
+
 ## Vision
 
 Eine **anschauliche Demo-Umgebung**, die zeigt wie ein polyglot Service-Runtime funktioniert:
@@ -58,175 +78,725 @@ Eine **anschauliche Demo-Umgebung**, die zeigt wie ein polyglot Service-Runtime 
 
 **Ziel**: Basis-Infrastruktur für Observability & Topology Tracking
 
-### 1.0 Topology Service ⭐⭐⭐⭐⭐ **[NEU!]**
+### 1.0 Topology Service ⭐⭐⭐⭐⭐ **[KOMPLETT NEU KONZIPIERT]**
 
-**Zweck**: Live-Visualisierung des Service-Netzwerks (wer ruft wen auf?)
+**Zweck**: Live-Visualisierung des Service-Netzwerks mit Heartbeat-basiertem Lifecycle-Tracking
 
 **Demo-Wert**:
 
 - 🎨 **Live Network Graph** (React Flow)
-- 🔍 Zeigt aktive Connections (nicht nur registrierte Services)
-- 📊 RPS/Latency pro Connection
+- 💓 **Heartbeat-basiert**: Automatische Erkennung von toten Services
+- 🔍 Zeigt aktive Connections UND passive Verbindungen
+- 📊 RPS/Latency pro Connection mit konfigurierbarem Throttling
 - 💥 Chaos-Tests sichtbar: Connection bricht → Graph updated
-- 🌍 Multi-Language: Rust-Client → TS-Server sichtbar
+- 🌍 **Expliziter Multi-Language-Support**: TS, Rust, C++, Go, Python
 
 **Problem das es löst**:
 
 - Broker kennt nur Service-Registrations
-- Niemand weiß welche Services **gerade tatsächlich** verbunden sind
+- Niemand weiß welche Services **tatsächlich alive** sind
+- Keine "Leichen" in der Web-View
 - Debugging: "Warum kommt mein Request nicht an?"
+- Multi-Language-Support ohne Interceptor-Magic
 
-**Proto**: `packages/proto/runtime/v1/topology.proto`
+---
+
+#### **Architektur-Prinzipien (REFACTORED)**
+
+##### 1. **Kein Interceptor-Zwang** ✅
+
+**Problem mit Interceptors**:
+
+- Nur in einigen Sprachen verfügbar (TypeScript: begrenzt, Rust/C++/Go: kompliziert)
+- Implizite Magie → schwer zu debuggen
+- Overhead bei jedem gRPC-Call
+- Server-Side-Interceptors in @grpc/grpc-js limitiert
+
+**Neue Lösung: Explizite Registrierung**
+
+Services registrieren sich **explizit** mit einem **Connection-Handle**:
 
 ```protobuf
 service TopologyService {
-  rpc ReportConnection(stream ConnectionEvent) returns (ConnectionAck);
+  // 1. Service registriert sich beim Start (Server + Client)
+  rpc RegisterService(RegisterServiceRequest) returns (ServiceHandle);
+
+  // 2. Heartbeat hält Service am Leben
+  rpc Heartbeat(stream HeartbeatRequest) returns (stream HeartbeatResponse);
+
+  // 3. Connection-Events (optional, nur bei aktiver Kommunikation)
+  rpc ReportActivity(stream ActivityEvent) returns (ActivityAck);
+
+  // 4. Service meldet sich ab (optional, bei graceful shutdown)
+  rpc UnregisterService(ServiceHandle) returns (UnregisterResponse);
+
+  // 5. Topology-Abfragen
   rpc GetTopology(TopologyQuery) returns (TopologySnapshot);
   rpc WatchTopology(TopologyQuery) returns (stream TopologyUpdate);
 }
+```
 
-message ConnectionEvent {
-  string source_service = 1;       // "calculator-client-rust"
-  string target_service = 2;       // "calculator-server"
-  ConnectionState state = 3;       // ESTABLISHED, ACTIVE, CLOSED
-  int64 timestamp = 4;
-  ConnectionMetadata metadata = 5;
+##### 2. **Heartbeat-Mechanismus** 💓
+
+**Warum Heartbeat?**
+
+- Echte Liveness-Detection (keine Zombie-Services)
+- Passive Connections sichtbar (connected aber idle)
+- Timeout-basierte Cleanup
+- Funktioniert in JEDER Sprache (simpler Stream)
+
+**Heartbeat-Fluss**:
+
+```
+Service (ANY Language)        TopologyService
+       |                             |
+       |--RegisterService()--------->|  ← Returns ServiceHandle + Interval
+       |<--ServiceHandle(id, 5s)-----|
+       |                             |
+       |==Heartbeat Stream opened===>|
+       |--Heartbeat(handle, seq=1)-->|  ← Every 5s
+       |<--HeartbeatResponse---------|
+       |                             |
+       |--Heartbeat(handle, seq=2)-->|  ← Every 5s
+       |<--HeartbeatResponse---------|
+       |                             |
+       [NO HEARTBEAT FOR 15s]        |  ← 3x Timeout
+       |                             |--Auto-Unregister
+       |                             |--Notify Watchers
+```
+
+**Heartbeat-Proto**:
+
+```protobuf
+message RegisterServiceRequest {
+  string service_name = 1;              // "calculator-client-rust"
+  ServiceType service_type = 2;         // SERVER | CLIENT | HYBRID
+  ServiceLanguage language = 3;         // TYPESCRIPT | RUST | CPP | GO | PYTHON (type-safe!)
+  optional string version = 4;          // "1.0.0"
+  optional string address = 5;          // "127.0.0.1:50051" (für ALLE Typen, nicht nur SERVER)
+  optional string host = 6;             // "my-machine" oder hostname
+  optional ServiceMetadata metadata = 7; // Strukturierte Metadata (type-safe)
 }
 
-message TopologySnapshot {
-  repeated ServiceNode nodes = 1;  // Services
-  repeated ServiceEdge edges = 2;  // Connections
-  int64 timestamp = 3;
+enum ServiceLanguage {
+  LANGUAGE_UNKNOWN = 0;
+  TYPESCRIPT = 1;
+  RUST = 2;
+  CPP = 3;
+  GO = 4;
+  PYTHON = 5;
+  JAVA = 6;
+  CSHARP = 7;
+  // Extensible für neue Sprachen
 }
 
-message ServiceNode {
-  string service_name = 1;
-  string address = 2;
-  HealthState health = 3;          // Integration mit Health Service
-  int32 active_connections = 4;
+message ServiceMetadata {
+  optional string region = 1;           // "eu-west", "us-east"
+  optional string environment = 2;      // "dev", "staging", "prod"
+  optional string team = 3;             // "platform", "backend"
+  optional string version_hash = 4;     // Git commit hash
+  // need to extend if needed
 }
 
-message ServiceEdge {
-  string source = 1;
-  string target = 2;
-  int32 connection_count = 3;
-  double total_rps = 4;            // Requests per second
-  ConnectionState state = 5;
+message ServiceHandle {
+  string service_id = 1;           // UUID
+  int32 heartbeat_interval_ms = 2; // z.B. 5000 (5s)
+  int32 timeout_multiplier = 3;    // z.B. 3 (15s timeout)
+}
+
+message HeartbeatRequest {
+  string service_id = 1;
+  int64 sequence = 2;              // Monoton steigend
+  optional ServiceMetrics metrics = 3; // Optional: CPU, Memory
+}
+
+message HeartbeatResponse {
+  int64 sequence = 1;              // Echo
+  bool acknowledged = 2;
+}
+
+enum ServiceType {
+  SERVER = 0;   // Bietet Service an
+  CLIENT = 1;   // Konsumiert Service
+  HYBRID = 2;   // Beides (z.B. Pipeline-Service)
 }
 ```
 
-**Implementation**:
+##### 3. **Activity Tracking (Optional)** 📊
 
-- TypeScript Service: `apps/topology-service/`
-- In-Memory Graph (Nodes + Edges)
-- Auto-Cleanup: Idle connections nach 30s entfernen
-- **gRPC Interceptor Package**: `packages/interceptors/topology-interceptor.ts`
+**Für Services die RPS/Latency tracken wollen**:
 
-**Interceptor-Usage** (transparentes Tracking):
+```protobuf
+message ActivityEvent {
+  string service_id = 1;
+  string target_service = 2;            // Wohin geht der Call?
+  ActivityType type = 3;                // REQUEST_SENT, RESPONSE_RECEIVED
+  optional int64 timestamp_ms = 4;      // Optional: Server kann timestamp setzen
+  optional int32 latency_ms = 5;        // Nur bei RESPONSE_RECEIVED
+  optional string method = 6;           // gRPC Method Name
+  optional bool success = 7;            // false bei Errors
+  optional int32 batch_size = 8;        // Anzahl aggregierter Events (für Throttling)
+  optional string error_message = 9;    // Bei Errors
+}
+
+enum ActivityType {
+  REQUEST_SENT = 0;
+  RESPONSE_RECEIVED = 1;
+  ERROR = 2;
+}
+```
+
+**Update-Throttling im Service**:
+
+- Services sammeln Activity-Events in lokalen Batches
+- Senden nur alle X Sekunden (konfigurierbar: 1s, 5s, 10s)
+- TopologyService aggregiert zu RPS/Latency-Metriken
+
+##### 4. **Connection-States** 🔌
+
+```protobuf
+enum ConnectionState {
+  UNKNOWN = 0;
+  REGISTERED = 1;    // Service registriert, sendet Heartbeats
+  IDLE = 2;          // Registriert, aber keine Activity-Events
+  ACTIVE = 3;        // Activity-Events fließen
+  STALE = 4;         // Heartbeat-Timeout (1x missed)
+  DEAD = 5;          // Heartbeat-Timeout (3x missed) → Auto-Remove
+}
+```
+
+---
+
+#### **Implementation**
+
+##### TypeScript Service: `apps/topology-service/`
+
+**Core Features**:
 
 ```typescript
-// In calculator-server/client
-import { topologyInterceptor } from '@modular-runtime/interceptors'
+class TopologyService {
+  private services = new Map<string, ServiceInfo>() // service_id → ServiceInfo
+  private connections = new Map<string, ConnectionInfo>() // "src->tgt" → ConnectionInfo
+  private heartbeatStreams = new Map<string, HeartbeatStream>()
 
-const server = new Server({
-  interceptors: [
-    topologyInterceptor({
-      serviceName: 'calculator-server',
-      topologyAddress: '127.0.0.1:50053',
-    }),
-  ],
-})
+  // Heartbeat-Timeout-Checker (runs every 5s)
+  private timeoutChecker = setInterval(() => {
+    const now = Date.now()
+    for (const [id, info] of this.services) {
+      const elapsed = now - info.lastHeartbeat
+      const timeout = info.heartbeatInterval * info.timeoutMultiplier
 
-// ← Services müssen nichts manuell tracken!
-// Interceptor meldet automatisch bei jedem gRPC Call
-```
-
-**Broker-Integration**:
-
-```typescript
-// Broker meldet Lookups an Topology Service
-async lookupService(request) {
-  const service = this.registry.find(request.interfaceName);
-
-  // Report: Client → Broker → Server (Discovery-Pfad)
-  await topologyClient.reportConnection({
-    source: request.callerService,
-    target: 'broker',
-    state: ACTIVE,
-    metadata: { method: 'LookupService' }
-  });
-
-  return service;
-}
-```
-
-**UI-Visualisierung** (React Flow):
-
-```tsx
-import ReactFlow from 'reactflow'
-
-export function TopologyView() {
-  const [topology, setTopology] = useState<TopologySnapshot>()
-
-  useEffect(() => {
-    const stream = topologyClient.watchTopology({})
-    for await (const update of stream) {
-      if (update.type === 'EDGE_ADDED') {
-        // Neue Connection → animierte Edge hinzufügen
-      }
-      if (update.type === 'NODE_REMOVED') {
-        // Service crashed → Node rot färben
+      if (elapsed > timeout) {
+        console.warn(`Service ${info.serviceName} DEAD (no heartbeat for ${elapsed}ms)`)
+        this.removeService(id)
+        this.notifyWatchers({ type: 'SERVICE_REMOVED', serviceId: id })
+      } else if (elapsed > info.heartbeatInterval * 2) {
+        info.state = ConnectionState.STALE
       }
     }
-  }, [])
+  }, 5000)
+
+  // RPS-Aggregation mit Throttle
+  private aggregateActivity() {
+    // Aggregiert Activity-Events zu RPS/Latency pro Connection
+    // Throttle: Updated nur alle 1-5s (konfigurierbar)
+  }
+}
+```
+
+**Timeout-Policy**:
+
+- `heartbeat_interval = 5s`
+- `timeout_multiplier = 3` → Timeout nach 15s
+- State STALE nach 10s (2x interval)
+- Auto-Remove nach 15s (3x interval)
+
+**Passive Connections**:
+
+- Service sendet Heartbeats → REGISTERED/IDLE
+- Service sendet Activity-Events → ACTIVE
+- Keine Activity für 30s → IDLE (aber noch alive via Heartbeat!)
+- Kein Heartbeat → DEAD → Removed
+
+---
+
+#### **Client-Integration (Multi-Language)**
+
+##### TypeScript
+
+```typescript
+import { TopologyClient } from '@modular-runtime/proto/generated/ts/runtime/v1/topology'
+
+class TopologyReporter {
+  private client: TopologyClient
+  private serviceId: string
+  private heartbeatInterval: number
+  private heartbeatSeq = 0
+
+  async register(serviceName: string, serviceType: ServiceType) {
+    const handle = await this.client.registerService({
+      serviceName,
+      serviceType,
+      language: ServiceLanguage.TYPESCRIPT, // ← Type-safe Enum!
+      version: process.env.npm_package_version,
+      metadata: {
+        environment: 'dev',
+        team: 'platform',
+      },
+    })
+
+    this.serviceId = handle.serviceId
+    this.heartbeatInterval = handle.heartbeatIntervalMs
+
+    this.startHeartbeat()
+  }
+
+  private startHeartbeat() {
+    const stream = this.client.heartbeat()
+
+    setInterval(() => {
+      stream.write({
+        serviceId: this.serviceId,
+        sequence: ++this.heartbeatSeq,
+      })
+    }, this.heartbeatInterval)
+
+    stream.on('data', (response) => {
+      // ACK received
+    })
+  }
+
+  reportActivity(targetService: string, method: string, latencyMs: number) {
+    // Optional: Batch und throttle
+    this.client.reportActivity({
+      serviceId: this.serviceId,
+      targetService,
+      type: ActivityType.RESPONSE_RECEIVED,
+      timestampMs: Date.now(),
+      latencyMs,
+      method,
+    })
+  }
+}
+
+// Usage
+const topology = new TopologyReporter('127.0.0.1', 50053)
+await topology.register('calculator-client', ServiceType.CLIENT)
+
+// Optional: Report activity
+topology.reportActivity('calculator-server', 'Add', 12)
+```
+
+##### Rust
+
+```rust
+use tonic::{Request, Response, Status};
+use tokio::time::{interval, Duration};
+
+pub struct TopologyReporter {
+    client: TopologyServiceClient<Channel>,
+    service_id: String,
+    heartbeat_interval: Duration,
+}
+
+impl TopologyReporter {
+    pub async fn register(addr: &str, service_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut client = TopologyServiceClient::connect(addr).await?;
+
+        let request = RegisterServiceRequest {
+            service_name: service_name.to_string(),
+            service_type: ServiceType::Client as i32,
+            language: ServiceLanguage::Rust as i32,  // ← Type-safe Enum!
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            ..Default::default()
+        };
+
+        let response = client.register_service(request).await?;
+        let handle = response.into_inner();
+
+        let service_id = handle.service_id.clone();
+        let heartbeat_interval = Duration::from_millis(handle.heartbeat_interval_ms as u64);
+
+        let mut reporter = Self {
+            client,
+            service_id: service_id.clone(),
+            heartbeat_interval,
+        };
+
+        reporter.start_heartbeat().await;
+
+        Ok(reporter)
+    }
+
+    async fn start_heartbeat(&mut self) {
+        let service_id = self.service_id.clone();
+        let mut client = self.client.clone();
+        let interval_duration = self.heartbeat_interval;
+
+        tokio::spawn(async move {
+            let mut ticker = interval(interval_duration);
+            let mut seq = 0u64;
+
+            let outbound = async_stream::stream! {
+                loop {
+                    ticker.tick().await;
+                    seq += 1;
+                    yield HeartbeatRequest {
+                        service_id: service_id.clone(),
+                        sequence: seq as i64,
+                        metrics: None,
+                    };
+                }
+            };
+
+            let response = client.heartbeat(Request::new(outbound)).await;
+            // Handle stream...
+        });
+    }
+}
+```
+
+##### C++ (simplified)
+
+```cpp
+class TopologyReporter {
+  std::unique_ptr<TopologyService::Stub> stub_;
+  std::string service_id_;
+  int heartbeat_interval_ms_;
+
+public:
+  void Register(const std::string& service_name) {
+    RegisterServiceRequest request;
+    request.set_service_name(service_name);
+    request.set_service_type(ServiceType::CLIENT);
+    request.set_language(ServiceLanguage::CPP);  // ← Type-safe Enum!
+
+    ServiceHandle handle;
+    ClientContext context;
+    stub_->RegisterService(&context, request, &handle);
+
+    service_id_ = handle.service_id();
+    heartbeat_interval_ms_ = handle.heartbeat_interval_ms();
+
+    StartHeartbeat();
+  }
+
+  void StartHeartbeat() {
+    std::thread([this]() {
+      ClientContext context;
+      auto stream = stub_->Heartbeat(&context);
+
+      int64_t seq = 0;
+      while (true) {
+        HeartbeatRequest request;
+        request.set_service_id(service_id_);
+        request.set_sequence(++seq);
+
+        stream->Write(request);
+
+        HeartbeatResponse response;
+        stream->Read(&response);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval_ms_));
+      }
+    }).detach();
+  }
+};
+```
+
+---
+
+#### **UI-Visualisierung** (React Flow)
+
+**Keine Änderungen nötig** – gleiche API wie vorher, nur Backend-Logik anders:
+
+```tsx
+export function TopologyView() {
+  const { data: topology } = useTopologyStream()
 
   const nodes = topology.nodes.map((n) => ({
     id: n.serviceName,
     data: {
       label: n.serviceName,
-      health: n.health, // Farbe: grün/gelb/rot
-      connections: n.activeConnections,
+      state: n.state, // REGISTERED, IDLE, ACTIVE, STALE, DEAD
+      language: n.language, // 🦀 Rust, 📘 TS, ⚙️ C++
+      lastHeartbeat: n.lastHeartbeat,
     },
-    position: calculateLayout(n), // Force-directed layout
+    style: {
+      background: getStateColor(n.state),
+      borderColor: n.state === 'STALE' ? '#fbbf24' : undefined,
+    },
   }))
 
   const edges = topology.edges.map((e) => ({
     id: `${e.source}-${e.target}`,
     source: e.source,
     target: e.target,
-    label: `${e.totalRps.toFixed(0)} RPS`,
-    animated: e.state === 'ACTIVE', // Animiert bei Traffic
-    style: { stroke: getEdgeColor(e.state) },
+    label: e.state === 'ACTIVE' ? `${e.totalRps.toFixed(0)} RPS` : '',
+    animated: e.state === 'ACTIVE',
+    style: {
+      stroke: e.state === 'IDLE' ? 'dashed' : 'solid',
+    },
   }))
 
   return <ReactFlow nodes={nodes} edges={edges} />
 }
 ```
 
-**Was zeigt die Demo?**
+---
 
-1. **Service Discovery sichtbar**:
-   - Client startet → Node erscheint
-   - Client: `LookupService("Calculator")` → Edge: Client → Broker
-   - Broker antwortet → Edge: Client → Calculator-Server
+#### **Was zeigt die Demo?**
 
-2. **Multi-Client-Szenarien**:
-   - 3 Clients (TS, Rust, C++) → alle verbunden mit Server
-   - Graph zeigt 3 Edges zum Server
+1. **Service Lifecycle**:
+   - Client startet → RegisterService → Node erscheint (REGISTERED)
+   - Heartbeats starten → Node bleibt grün
+   - Client sendet Requests → Node wird ACTIVE (animiert)
+   - Keine Requests für 30s → Node wird IDLE (grau)
+   - Kein Heartbeat für 15s → Node wird rot (STALE → DEAD) → verschwindet
 
-3. **Load Testing**:
-   - Load-Generator startet → Edge mit "3000 RPS" Label
-   - RPS-Counter updated live
+2. **Multi-Language**:
+   - 3 Clients (🦀 Rust, 📘 TS, ⚙️ C++) registrieren sich
+   - Alle senden Heartbeats → 3 Nodes im Graph
+   - Nodes zeigen Language-Icon
 
-4. **Chaos Engineering**:
-   - "Kill Calculator-Server" → Node wird rot
-   - Alle Edges zum Server verschwinden (CLOSED)
-   - Supervisor startet neu → Node wird gelb (STARTING)
-   - Clients reconnecten → Edges kommen zurück
+3. **Chaos Engineering**:
+   - "Kill Calculator-Server" → Heartbeats stoppen
+   - Nach 15s → Node wird DEAD → verschwindet aus Graph
+   - Supervisor startet neu → RegisterService → Node kommt zurück
 
-5. **Idle Connections**:
-   - Client connected aber sendet nichts → gestrichelte Edge
-   - Nach 30s → Edge verschwindet (Cleanup)
+4. **Passive Connections**:
+   - Client connected (sendet Heartbeats) aber idle → gestrichelte Edge
+   - Kein Auto-Remove (solange Heartbeats kommen!)
+
+5. **Throttled Updates**:
+   - 1000 RPS Load-Test → Activity-Events gebatched
+   - TopologyService updated RPS-Counter nur alle 1s
+   - Web-View bekommt throttled Updates (keine Überlastung)
+
+---
+
+## 🔀 Varianten-Vergleich: Topology Service
+
+### Variante 1: Heartbeat-basiert ⭐ **EMPFOHLEN**
+
+**Architektur**:
+
+- Services registrieren sich **explizit** beim Start
+- Bidirektionale Heartbeat-Streams (alle 5s)
+- Optional: Activity-Reporting für RPS/Latency
+- Timeout-basierte Cleanup (3x missed = DEAD)
+
+**Pros**:
+
+- ✅ **Multi-Language ohne Einschränkungen** (funktioniert in JEDER Sprache)
+- ✅ **Echte Liveness-Detection** (Heartbeat = alive)
+- ✅ **Keine Zombie-Services** (Timeout → Auto-Remove)
+- ✅ **Explizit und debuggbar** (kein verstecktes Verhalten)
+- ✅ **Passive Connections sichtbar** (IDLE State)
+- ✅ **Type-Safe** Proto-Definitionen
+- ✅ **Throttled Updates** (skalierbar)
+
+**Cons**:
+
+- ⚠️ Zusätzlicher Heartbeat-Traffic (gering: 1 msg/5s pro Service)
+- ⚠️ Services müssen Code ändern (explizite Registration)
+
+**Aufwand**: 4-5 Tage (Proto + Service + Client-Libs)
+
+**Code-Beispiel** (TypeScript):
+
+```typescript
+const topology = new TopologyReporter({
+  topologyAddress: '127.0.0.1:50053',
+  serviceName: 'calculator-client',
+  serviceType: ServiceType.CLIENT,
+  enableActivityReporting: true,
+})
+
+await topology.register() // ← Explizit
+
+// Optional: Activity Tracking
+topology.reportActivity('calculator-server', 'Add', latencyMs)
+
+await topology.unregister() // Graceful Shutdown
+```
+
+---
+
+### Variante 2: Interceptor-basiert ❌ **NICHT EMPFOHLEN**
+
+**Architektur**:
+
+- gRPC-Interceptors in jedem Service
+- Automatisches Tracking bei jedem gRPC-Call
+- Kein expliziter Code in Services
+
+**Pros**:
+
+- ✅ Transparent (Services müssen nichts ändern)
+- ✅ Automatisch bei jedem Call
+
+**Cons**:
+
+- ❌ **Language-Lock-in**: Nicht alle Sprachen unterstützen Interceptors
+  - TypeScript: Client-Interceptors OK, Server sehr limitiert
+  - Rust: API komplex
+  - C++: Keine standardisierten Interceptors
+  - Go: Unterschiedliche API
+- ❌ **Implizite Magie**: Schwer zu debuggen
+- ❌ **Overhead**: Bei JEDEM gRPC-Call zusätzliche Logik
+- ❌ **Keine Liveness-Detection**: Erkennt nicht ob Service tot ist
+- ❌ **Zombie-Services**: Registrierte Services bleiben im Graph
+
+**Aufwand**: 3-4 Tage (aber nur für TypeScript zuverlässig)
+
+**Code-Beispiel** (TypeScript):
+
+```typescript
+const server = new Server({
+  interceptors: [
+    topologyInterceptor({
+      // ← Implizit
+      serviceName: 'calculator-server',
+      topologyAddress: '127.0.0.1:50053',
+    }),
+  ],
+})
+// ← Keine weiteren Änderungen nötig, aber auch keine Kontrolle
+```
+
+---
+
+### Variante 3: Hybrid (Optional)
+
+**Architektur**:
+
+- **Heartbeat für Liveness** (Pflicht)
+- **Interceptor für Activity** (Optional, nur wo verfügbar)
+
+**Pros**:
+
+- ✅ Beste aus beiden Welten
+- ✅ Fallback für Sprachen ohne Interceptor-Support
+- ✅ Liveness-Detection gesichert
+
+**Cons**:
+
+- ⚠️ Komplexere Implementierung
+- ⚠️ Inkonsistente APIs zwischen Sprachen
+- ⚠️ Debugging schwieriger (zwei Mechanismen)
+
+**Aufwand**: +2 Tage zusätzlich zu Variante 1
+
+**Empfehlung**: Nur wenn Interceptor-Transparenz **wirklich wichtig** ist
+
+---
+
+### Entscheidungsmatrix
+
+| Kriterium                  | Heartbeat ⭐ | Interceptor ❌ | Hybrid 🤔 |
+| -------------------------- | ------------ | -------------- | --------- |
+| Multi-Language-Support     | ✅ Ja        | ⚠️ Limitiert   | ✅ Ja     |
+| Liveness-Detection         | ✅ Ja        | ❌ Nein        | ✅ Ja     |
+| Zombie-Services verhindern | ✅ Ja        | ❌ Nein        | ✅ Ja     |
+| Explizit/Debuggbar         | ✅ Ja        | ❌ Nein        | ⚠️ Mixed  |
+| Transparent                | ❌ Nein      | ✅ Ja          | ⚠️ Mixed  |
+| Type-Safety                | ✅ Ja        | ⚠️ Teilweise   | ✅ Ja     |
+| Aufwand                    | 4-5 Tage     | 3-4 Tage       | 6-7 Tage  |
+| Production-Ready           | ✅ Ja        | ⚠️ Risiko      | ✅ Ja     |
+
+---
+
+### Priorisierung & Roadmap
+
+#### **Sprint 1: Heartbeat-Implementierung** (Woche 1)
+
+**P0 - Kritisch**:
+
+1. Proto-Definition (`runtime/v1/topology.proto`)
+   - RegisterService, Heartbeat, ReportActivity
+   - ServiceHandle, ConnectionState Enums
+2. Topology Service (TypeScript)
+   - Service Registry (Map)
+   - Heartbeat-Timeout-Checker (5s Interval)
+   - Activity-Aggregation (1s Throttle)
+3. TypeScript Client-Library
+   - TopologyReporter-Klasse
+   - Auto-Heartbeat
+   - Activity-Batching
+
+**Deliverables**: Core-Funktionalität für TS-Services
+
+---
+
+#### **Sprint 2: Multi-Language-Support** (Woche 2)
+
+**P1 - Wichtig**: 4. Rust Client-Library
+
+- async_stream für Heartbeat
+- tonic-Integration
+
+5. C++ Client-Library
+   - Thread-basierter Heartbeat
+   - grpc++-Integration
+6. Calculator-Integration (alle Sprachen)
+   - TS-Client, Rust-Client, C++-Client
+   - TS-Server
+
+**Deliverables**: Alle Calculator-Services integriert
+
+---
+
+#### **Sprint 3: Dashboard & Demo** (Woche 3)
+
+**P1 - Wichtig**: 7. Dashboard React Flow Integration
+
+- WatchTopology() Stream
+- Node/Edge-Visualisierung
+- State-basierte Styling
+
+8. Demo-Szenarien
+   - Multi-Client-Szenario
+   - Chaos Engineering (Kill Service)
+   - Load Testing
+9. Documentation
+   - Architecture-Doc (✅ bereits erstellt)
+   - API-Docs
+   - Integration-Guide
+
+**Deliverables**: Vollständige Demo-Umgebung
+
+---
+
+#### **Backlog: Optional/Later**
+
+**P2 - Nice-to-Have**:
+
+- Go Client-Library
+- Python Client-Library
+- Hybrid Interceptor-Support (falls gewünscht)
+- Health Service Integration (State-Mapping)
+- Metrics (Prometheus Export)
+
+---
+
+### 🎯 Umsetzungsempfehlung
+
+**Start mit Variante 1 (Heartbeat-basiert)**
+
+**Begründung**:
+
+1. ✅ Deckt alle Requirements ab (Multi-Language, Liveness, No-Zombies)
+2. ✅ Production-Ready und robust
+3. ✅ Explizit und wartbar
+4. ✅ Funktioniert in ALLEN Sprachen gleich gut
+5. ⚠️ Interceptor-Variante kann SPÄTER als Add-On implementiert werden (backward-compatible)
+
+**Migrationsplan** (falls später Interceptors gewünscht):
+
+- Heartbeat bleibt Basis (Liveness)
+- Interceptor als optionales Add-On (Activity-Tracking)
+- Services können wählen: Manual-Reporting oder Interceptor
 
 ---
 
@@ -254,7 +824,6 @@ message HealthStatus {
   HealthState state = 2; // STARTING, HEALTHY, DEGRADED, UNHEALTHY
   string message = 3;
   int64 timestamp = 4;
-  map<string, string> metadata = 5;
 }
 
 enum HealthState {
@@ -307,7 +876,6 @@ message LogEntry {
   string message = 3;
   int64 timestamp = 4;
   string correlation_id = 5;
-  map<string, string> metadata = 6;
 }
 
 enum LogLevel {
