@@ -6,64 +6,7 @@
     <title>Runtime Dashboard</title>
   </head>
   <body>
-    <header>
-      <h1>Runtime Dashboard</h1>
-      <span class="status-pill" data-status="connecting" data-status-indicator>connecting</span>
-    </header>
-    <main>
-      <section class="panel">
-        <div class="panel-title">Overview</div>
-        <div class="meta-grid">
-          <div>
-            <strong data-services>0</strong>
-            Services
-          </div>
-          <div>
-            <strong data-connections>0</strong>
-            Connections
-          </div>
-          <div>
-            <strong data-last-update>-</strong>
-            Last Update
-          </div>
-          <div>
-            <strong>http://127.0.0.1:50054/events</strong>
-            Stream URL
-          </div>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-title">Services</div>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>State</th>
-              <th>Last Heartbeat</th>
-              <th>Last Activity</th>
-              <th>Address</th>
-            </tr>
-          </thead>
-          <tbody data-nodes></tbody>
-        </table>
-      </section>
-      <section class="panel">
-        <div class="panel-title">Connections</div>
-        <table>
-          <thead>
-            <tr>
-              <th>Source ID</th>
-              <th>Target Service</th>
-              <th>State</th>
-              <th>RPS</th>
-              <th>Avg Latency</th>
-              <th>Total Requests</th>
-            </tr>
-          </thead>
-          <tbody data-edges></tbody>
-        </table>
-      </section>
-    </main>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

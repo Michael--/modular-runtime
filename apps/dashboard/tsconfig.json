@@ -1,8 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "lib": ["ES2022", "dom"],
+    "jsx": "react-jsx",
     "module": "ES2022",
     "moduleResolution": "bundler"
   },
