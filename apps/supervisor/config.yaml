@@ -88,11 +88,8 @@ services:
     restartOnUnexpectedExit: true
     logColor: green
   - name: calculator-client-rust
-    command: pnpm
+    command: apps/calculator-client-rust/target/release/calculator-client-rust
     args:
-      - -C
-      - apps/calculator-client-rust
-      - start
       - --broker-address
       - 127.0.0.1:50051
     cwd: ../..
