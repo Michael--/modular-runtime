@@ -81,7 +81,7 @@ Reports activity for a service interaction.
 {
   "serviceId": "550e8400-e29b-41d4-a716-446655440000",
   "targetService": "calculator-server",
-  "type": "ACTIVITY_TYPE_REQUEST",
+  "type": "ACTIVITY_TYPE_REQUEST_SENT",
   "latencyMs": 42,
   "method": "Calculate",
   "success": true
@@ -199,6 +199,6 @@ curl -X POST http://localhost:50055/unregister \
 
 ## Activity Types
 
-- `ACTIVITY_TYPE_REQUEST`
-- `ACTIVITY_TYPE_RESPONSE`
+- `ACTIVITY_TYPE_REQUEST_SENT`
+- `ACTIVITY_TYPE_RESPONSE_RECEIVED`
 - `ACTIVITY_TYPE_ERROR`

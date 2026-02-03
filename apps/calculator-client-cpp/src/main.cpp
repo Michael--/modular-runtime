@@ -165,7 +165,7 @@ namespace
     json_body << "{"
               << "\"serviceId\":\"" << g_service_id << "\","
               << "\"targetService\":\"calculator-server\","
-              << "\"type\":\"ACTIVITY_TYPE_REQUEST\","
+              << "\"type\":\"ACTIVITY_TYPE_REQUEST_SENT\","
               << "\"latencyMs\":" << latency_ms << ","
               << "\"success\":" << (success ? "true" : "false")
               << "}";

@@ -130,7 +130,7 @@ async function startTopologyReporter() {
     language: ServiceLanguage.SERVICE_LANGUAGE_TYPESCRIPT,
     host: hostname(),
     address: `${url}:${port}`,
-    enableActivity: false,
+    enableActivity: true,
   })
 
   try {
