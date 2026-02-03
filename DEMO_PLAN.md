@@ -2432,6 +2432,42 @@ export function useTopologyStream() {
 
 ---
 
+## TODO Checklist (Commit-by-Commit)
+
+**Sprint 1**
+
+- [ ] Add `runtime/v1/topology.proto` source file (RegisterService, Heartbeat, ReportActivity, enums)
+- [ ] Generate proto outputs (TS + Connect + Rust/C++)
+- [ ] Create `apps/topology-service/` skeleton (config + main entry)
+- [ ] Implement service registry + in-memory graph
+- [ ] Implement heartbeat stream + timeout cleanup
+- [ ] Implement activity stream + aggregation/throttling
+- [ ] Add WatchTopology streaming updates
+- [ ] Add unit tests for heartbeat timeout + activity aggregation
+
+**Sprint 2**
+
+- [ ] Add Topology reporter (TypeScript) package or module
+- [ ] Wire TS calculator client/server to heartbeat + optional activity
+- [ ] Add Rust reporter (tonic) and integrate with Rust client
+- [ ] Add C++ reporter (grpc++) and integrate with C++ client
+- [ ] Add broker integration hooks (if required for discovery metadata)
+
+**Sprint 3**
+
+- [ ] Add dashboard data store for topology stream (zustand)
+- [ ] Connect client wiring (Connect transport)
+- [ ] Implement Topology graph component (React Flow)
+- [ ] Add node/edge styling based on health/state
+- [ ] Add basic topology detail panel (node/edge info)
+
+**Sprint 4**
+
+- [ ] Implement load generator service
+- [ ] Implement chaos injector service
+- [ ] Add demo script with scenarios
+- [ ] Add screenshots + docs update
+
 ## Technische Entscheidungen
 
 ### Browser + gRPC: Connect (buf.build)
