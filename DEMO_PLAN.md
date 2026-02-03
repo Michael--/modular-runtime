@@ -2447,8 +2447,8 @@ export function useTopologyStream() {
 
 **Sprint 2**
 
-- [ ] Add Topology reporter (TypeScript) package or module
-- [ ] Wire TS calculator client/server to heartbeat + optional activity
+- [x] Add Topology reporter (TypeScript) package or module
+- [x] Wire TS calculator client/server to heartbeat + optional activity
 - [ ] Add Rust reporter (tonic) and integrate with Rust client
 - [ ] Add C++ reporter (grpc++) and integrate with C++ client
 - [ ] Add broker integration hooks (if required for discovery metadata)

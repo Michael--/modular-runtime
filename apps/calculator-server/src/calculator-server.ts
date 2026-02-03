@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+import { hostname } from 'node:os'
 import * as grpc from '@grpc/grpc-js'
 import {
   Operation,
@@ -11,11 +12,18 @@ import {
 import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js'
 import { BrokerClientManager } from '../../../packages/broker/src/BrokerClientManager'
 import { NotifyServiceChangesResponse } from '../../../packages/proto/generated/ts/broker/v1/broker'
+import { TopologyReporter } from '../../../packages/topology-reporter/src'
+import {
+  ServiceLanguage,
+  ServiceType,
+} from '../../../packages/proto/generated/ts/runtime/v1/topology'
 
 const parseArgs = () => {
   const args = process.argv.slice(2)
   let address = '127.0.0.1:5555'
   let brokerAddress = '127.0.0.1:50051'
+  let topologyAddress = process.env.TOPOLOGY_ADDRESS ?? '127.0.0.1:50053'
+  let topologyEnabled = process.env.TOPOLOGY_ENABLED !== 'false'
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--address' && i + 1 < args.length) {
       address = args[i + 1]
@@ -23,18 +31,24 @@ const parseArgs = () => {
     } else if (args[i] === '--broker-address' && i + 1 < args.length) {
       brokerAddress = args[i + 1]
       i++
+    } else if (args[i] === '--topology-address' && i + 1 < args.length) {
+      topologyAddress = args[i + 1]
+      i++
+    } else if (args[i] === '--no-topology') {
+      topologyEnabled = false
     }
   }
   const [url, portStr] = address.split(':')
   const port = parseInt(portStr, 10)
   const [brokerUrl, brokerPortStr] = brokerAddress.split(':')
   const brokerPort = parseInt(brokerPortStr, 10)
-  return { url, port, brokerUrl, brokerPort }
+  return { url, port, brokerUrl, brokerPort, topologyAddress, topologyEnabled }
 }
 
-const { url, port, brokerUrl, brokerPort } = parseArgs()
+const { url, port, brokerUrl, brokerPort, topologyAddress, topologyEnabled } = parseArgs()
 
 let brokerManager: BrokerClientManager | null = null
+let topologyReporter: TopologyReporter | null = null
 
 function brokerManagerInstance() {
   console.log('Lookup calculator service')
@@ -104,11 +118,36 @@ async function startServer() {
   console.log('Registered calculator service with broker')
 }
 
+async function startTopologyReporter() {
+  if (!topologyEnabled || topologyReporter != null) {
+    return
+  }
+
+  topologyReporter = new TopologyReporter({
+    topologyAddress,
+    serviceName: 'calculator-server',
+    serviceType: ServiceType.SERVICE_TYPE_SERVER,
+    language: ServiceLanguage.SERVICE_LANGUAGE_TYPESCRIPT,
+    host: hostname(),
+    address: `${url}:${port}`,
+    enableActivity: false,
+  })
+
+  try {
+    await topologyReporter.register()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`Topology reporter failed to start: ${message}`)
+    topologyReporter = null
+  }
+}
+
 // Centralized shutdown logic
 async function handleShutdown() {
   console.log('Shutdown signal received')
   try {
     await brokerManager?.shutdown()
+    await topologyReporter?.shutdown()
   } catch (error) {
     console.error('Error during shutdown:', error)
   }
@@ -122,6 +161,7 @@ process.on('SIGTERM', handleShutdown)
 async function main() {
   console.log('Starting calculator server...')
   brokerManagerInstance()
+  await startTopologyReporter()
   startServer()
 }
 
