@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.18)
 project(calculator_client_cpp LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -57,7 +57,10 @@ target_include_directories(calculator-client-cpp
     ${GENERATED_DIR}
 )
 
+find_package(CURL REQUIRED)
+
 target_link_libraries(calculator-client-cpp
   PRIVATE
     gRPC::grpc++
+    CURL::libcurl
 )

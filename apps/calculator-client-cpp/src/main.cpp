@@ -8,7 +8,9 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <sstream>
 #include <thread>
+#include <curl/curl.h>
 
 #include <grpcpp/grpcpp.h>
 
@@ -19,6 +21,7 @@ namespace
 {
   constexpr const char *kBrokerAddressEnv = "BROKER_ADDRESS";
   constexpr const char *kDefaultBrokerAddress = "127.0.0.1:50051";
+  constexpr const char *kDefaultTopologyProxyAddress = "http://127.0.0.1:50055";
   constexpr const char *kServiceName = "calculator.v1.CalculatorService";
   constexpr const char *kDefaultRole = "default";
   constexpr int kReconnectDelaySeconds = 3;
@@ -26,6 +29,7 @@ namespace
   constexpr int kRpcTimeoutSeconds = 3;
 
   std::atomic<bool> g_running{true};
+  std::string g_service_id;
 
   struct ServiceEndpoint
   {
@@ -61,6 +65,133 @@ namespace
                 << " (set " << kBrokerAddressEnv << " or use --broker-address to override)" << std::endl;
     }
     return broker_address;
+  }
+
+  // HTTP helper: callback for curl response
+  size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *output)
+  {
+    size_t total_size = size * nmemb;
+    output->append(static_cast<char *>(contents), total_size);
+    return total_size;
+  }
+
+  // HTTP POST helper
+  bool HttpPost(const std::string &url, const std::string &json_body, std::string &response)
+  {
+    CURL *curl = curl_easy_init();
+    if (!curl)
+    {
+      return false;
+    }
+
+    struct curl_slist *headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+
+    CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    return res == CURLE_OK && http_code == 200;
+  }
+
+  // Extract serviceId from JSON response
+  std::string ExtractServiceId(const std::string &json_response)
+  {
+    // Simple JSON parsing: look for "serviceId":"..."
+    const std::string key = "\"serviceId\":\"";
+    size_t pos = json_response.find(key);
+    if (pos == std::string::npos)
+    {
+      return "";
+    }
+    pos += key.length();
+    size_t end_pos = json_response.find("\"", pos);
+    if (end_pos == std::string::npos)
+    {
+      return "";
+    }
+    return json_response.substr(pos, end_pos - pos);
+  }
+
+  // Register with topology service via HTTP proxy
+  bool RegisterTopology(const std::string &proxy_address)
+  {
+    std::string url = proxy_address + "/register";
+    std::string json_body = R"({
+      "serviceName": "calculator-client-cpp",
+      "serviceType": "SERVICE_TYPE_CLIENT",
+      "language": "SERVICE_LANGUAGE_CPP",
+      "version": "1.0.0",
+      "enableActivity": true
+    })";
+
+    std::string response;
+    if (!HttpPost(url, json_body, response))
+    {
+      std::cerr << "Failed to register with topology service" << std::endl;
+      return false;
+    }
+
+    g_service_id = ExtractServiceId(response);
+    if (g_service_id.empty())
+    {
+      std::cerr << "Failed to extract serviceId from response: " << response << std::endl;
+      return false;
+    }
+
+    std::cout << "Registered with topology service: " << g_service_id << std::endl;
+    return true;
+  }
+
+  // Report activity to topology service
+  void ReportActivity(const std::string &proxy_address, bool success, int latency_ms)
+  {
+    if (g_service_id.empty())
+    {
+      return;
+    }
+
+    std::ostringstream json_body;
+    json_body << "{"
+              << "\"serviceId\":\"" << g_service_id << "\","
+              << "\"targetService\":\"calculator-server\","
+              << "\"type\":\"ACTIVITY_TYPE_REQUEST\","
+              << "\"latencyMs\":" << latency_ms << ","
+              << "\"success\":" << (success ? "true" : "false")
+              << "}";
+
+    std::string url = proxy_address + "/activity";
+    std::string response;
+    HttpPost(url, json_body.str(), response);
+  }
+
+  // Unregister from topology service
+  void UnregisterTopology(const std::string &proxy_address)
+  {
+    if (g_service_id.empty())
+    {
+      return;
+    }
+
+    std::string url = proxy_address + "/unregister";
+    std::ostringstream json_body;
+    json_body << "{\"serviceId\":\"" << g_service_id << "\"}";
+
+    std::string response;
+    if (HttpPost(url, json_body.str(), response))
+    {
+      std::cout << "Unregistered from topology service" << std::endl;
+    }
   }
 
   bool RoleMatches(const std::string &role)
@@ -196,7 +327,17 @@ int main(int argc, char *argv[])
 
   std::cout << "Starting C++ calculator client..." << std::endl;
 
+  // Initialize curl globally
+  curl_global_init(CURL_GLOBAL_ALL);
+
   const std::string broker_address = BrokerAddress(argc, argv);
+  const std::string topology_proxy = kDefaultTopologyProxyAddress;
+
+  // Register with topology service
+  if (!RegisterTopology(topology_proxy))
+  {
+    std::cerr << "Failed to register with topology service" << std::endl;
+  }
 
   std::random_device rd;
   std::mt19937 rng(rd());
@@ -268,15 +409,23 @@ int main(int argc, char *argv[])
       grpc::ClientContext context;
       context.set_deadline(
           std::chrono::system_clock::now() + std::chrono::seconds(kRpcTimeoutSeconds));
+
+      auto start = std::chrono::steady_clock::now();
       const grpc::Status status = calculator_stub->Calculate(&context, request, &response);
+      auto end = std::chrono::steady_clock::now();
+      int latency_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
       if (!status.ok())
       {
         std::cerr << "Calculation failed: " << status.error_message() << std::endl;
+        ReportActivity(topology_proxy, false, latency_ms);
         break;
       }
 
       std::cout << "calculate(" << a << " " << OperationSymbol(operation) << " " << b
                 << ") => " << response.result() << std::endl;
+
+      ReportActivity(topology_proxy, true, latency_ms);
 
       std::this_thread::sleep_for(std::chrono::seconds(2));
     }
@@ -289,6 +438,11 @@ int main(int argc, char *argv[])
     }
   }
 
+  // Unregister from topology service
+  UnregisterTopology(topology_proxy);
+
   std::cout << "Shutting down." << std::endl;
+
+  curl_global_cleanup();
   return 0;
 }
