@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "clean": "rimraf dist",
+    "clean": "rimraf dist generated",
     "lint": "buf lint",
     "gen": "PATH=$PATH:$HOME/go/bin buf generate",
     "build": "tsc",

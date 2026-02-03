@@ -2436,14 +2436,14 @@ export function useTopologyStream() {
 
 **Sprint 1**
 
-- [ ] Add `runtime/v1/topology.proto` source file (RegisterService, Heartbeat, ReportActivity, enums)
-- [ ] Generate proto outputs (TS + Connect + Rust/C++)
-- [ ] Create `apps/topology-service/` skeleton (config + main entry)
-- [ ] Implement service registry + in-memory graph
-- [ ] Implement heartbeat stream + timeout cleanup
-- [ ] Implement activity stream + aggregation/throttling
-- [ ] Add WatchTopology streaming updates
-- [ ] Add unit tests for heartbeat timeout + activity aggregation
+- [x] Add `runtime/v1/topology.proto` source file (RegisterService, Heartbeat, ReportActivity, enums)
+- [x] Generate proto outputs (TS + Rust/Go)
+- [x] Create `apps/topology-service/` skeleton (config + main entry)
+- [x] Implement service registry + in-memory graph
+- [x] Implement heartbeat stream + timeout cleanup
+- [x] Implement activity stream + aggregation/throttling
+- [x] Add WatchTopology streaming updates
+- [x] Add unit tests for heartbeat timeout + activity aggregation
 
 **Sprint 2**
 

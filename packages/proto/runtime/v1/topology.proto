@@ -1,0 +1,245 @@
+syntax = "proto3";
+
+package runtime.v1;
+
+option go_package = "runtime/v1";
+
+// ServiceType indicates whether a service provides, consumes, or does both.
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_SERVER = 1;
+  SERVICE_TYPE_CLIENT = 2;
+  SERVICE_TYPE_HYBRID = 3;
+}
+
+// ServiceLanguage describes the implementation language.
+enum ServiceLanguage {
+  SERVICE_LANGUAGE_UNSPECIFIED = 0;
+  SERVICE_LANGUAGE_TYPESCRIPT = 1;
+  SERVICE_LANGUAGE_RUST = 2;
+  SERVICE_LANGUAGE_CPP = 3;
+  SERVICE_LANGUAGE_GO = 4;
+  SERVICE_LANGUAGE_PYTHON = 5;
+  SERVICE_LANGUAGE_JAVA = 6;
+  SERVICE_LANGUAGE_CSHARP = 7;
+}
+
+// HealthState represents the health status of a service.
+enum HealthState {
+  HEALTH_STATE_UNKNOWN = 0;
+  HEALTH_STATE_STARTING = 1;
+  HEALTH_STATE_HEALTHY = 2;
+  HEALTH_STATE_DEGRADED = 3;
+  HEALTH_STATE_UNHEALTHY = 4;
+}
+
+// ServiceState represents the lifecycle state of a service node.
+enum ServiceState {
+  SERVICE_STATE_UNSPECIFIED = 0;
+  SERVICE_STATE_REGISTERED = 1;
+  SERVICE_STATE_IDLE = 2;
+  SERVICE_STATE_ACTIVE = 3;
+  SERVICE_STATE_STALE = 4;
+  SERVICE_STATE_DEAD = 5;
+}
+
+// ConnectionState represents the lifecycle state of an edge.
+enum ConnectionState {
+  CONNECTION_STATE_UNSPECIFIED = 0;
+  CONNECTION_STATE_IDLE = 1;
+  CONNECTION_STATE_ACTIVE = 2;
+  CONNECTION_STATE_FAILED = 3;
+}
+
+// UpdateType indicates what kind of topology change occurred.
+enum UpdateType {
+  UPDATE_TYPE_UNSPECIFIED = 0;
+  UPDATE_TYPE_SNAPSHOT = 1;
+  UPDATE_TYPE_NODE_ADDED = 2;
+  UPDATE_TYPE_NODE_UPDATED = 3;
+  UPDATE_TYPE_NODE_REMOVED = 4;
+  UPDATE_TYPE_EDGE_ADDED = 5;
+  UPDATE_TYPE_EDGE_UPDATED = 6;
+  UPDATE_TYPE_EDGE_REMOVED = 7;
+}
+
+// ActivityType represents the kind of activity event.
+enum ActivityType {
+  ACTIVITY_TYPE_UNSPECIFIED = 0;
+  ACTIVITY_TYPE_REQUEST_SENT = 1;
+  ACTIVITY_TYPE_RESPONSE_RECEIVED = 2;
+  ACTIVITY_TYPE_ERROR = 3;
+}
+
+// ServiceMetadata provides structured, optional metadata.
+message ServiceMetadata {
+  optional string region = 1;
+  optional string environment = 2;
+  optional string team = 3;
+  optional string version_hash = 4;
+}
+
+// ServiceMetrics contains optional runtime metrics.
+message ServiceMetrics {
+  double cpu_percent = 1;
+  uint64 memory_bytes = 2;
+}
+
+// ApplicationHealth provides application-level health details.
+message ApplicationHealth {
+  HealthState state = 1;
+  optional string message = 2;
+  optional int32 error_count = 3;
+}
+
+// RegisterServiceRequest registers a service and returns a handle.
+message RegisterServiceRequest {
+  string service_name = 1;
+  ServiceType service_type = 2;
+  ServiceLanguage language = 3;
+  optional string version = 4;
+  optional string address = 5;
+  optional string host = 6;
+  optional ServiceMetadata metadata = 7;
+}
+
+// ServiceHandle is returned after registration.
+message ServiceHandle {
+  string service_id = 1;
+  int32 heartbeat_interval_ms = 2;
+  int32 timeout_multiplier = 3;
+}
+
+// HeartbeatRequest keeps a service alive.
+message HeartbeatRequest {
+  string service_id = 1;
+  int64 sequence = 2;
+  optional ServiceMetrics metrics = 3;
+  optional ApplicationHealth health = 4;
+}
+
+// HeartbeatResponse acknowledges a heartbeat.
+message HeartbeatResponse {
+  int64 sequence = 1;
+  bool acknowledged = 2;
+}
+
+// ReportActivityRequest represents an optional activity report.
+message ReportActivityRequest {
+  string service_id = 1;
+  string target_service = 2;
+  ActivityType type = 3;
+  optional int64 timestamp_ms = 4;
+  optional int32 latency_ms = 5;
+  optional string method = 6;
+  optional bool success = 7;
+  optional int32 batch_size = 8;
+  optional string error_message = 9;
+}
+
+// ReportActivityResponse confirms receipt of activity events.
+message ReportActivityResponse {
+  bool acknowledged = 1;
+  int64 accepted_events = 2;
+}
+
+// TopologyQuery allows filtering the topology view.
+message TopologyQuery {
+  repeated string service_names = 1;
+  bool include_idle = 2;
+  bool include_stale = 3;
+}
+
+// RegisterServiceResponse returns the service handle.
+message RegisterServiceResponse {
+  ServiceHandle handle = 1;
+}
+
+// UnregisterServiceRequest removes a service by ID.
+message UnregisterServiceRequest {
+  string service_id = 1;
+}
+
+// UnregisterServiceResponse confirms a removal.
+message UnregisterServiceResponse {
+  bool removed = 1;
+}
+
+// GetTopologyRequest fetches the topology snapshot.
+message GetTopologyRequest {
+  TopologyQuery query = 1;
+}
+
+// GetTopologyResponse returns the topology snapshot.
+message GetTopologyResponse {
+  TopologySnapshot snapshot = 1;
+}
+
+// WatchTopologyRequest streams updates for a query.
+message WatchTopologyRequest {
+  TopologyQuery query = 1;
+}
+
+// WatchTopologyResponse streams topology updates.
+message WatchTopologyResponse {
+  TopologyUpdate update = 1;
+}
+
+// TopologySnapshot represents the full topology state.
+message TopologySnapshot {
+  repeated ServiceNode nodes = 1;
+  repeated ServiceEdge edges = 2;
+  int64 timestamp_ms = 3;
+}
+
+// ServiceNode represents a service in the topology graph.
+message ServiceNode {
+  string service_id = 1;
+  string service_name = 2;
+  ServiceType service_type = 3;
+  ServiceLanguage language = 4;
+  optional string version = 5;
+  optional string address = 6;
+  optional string host = 7;
+  optional ServiceMetadata metadata = 8;
+  ServiceState state = 9;
+  int64 last_heartbeat_ms = 10;
+  int64 last_activity_ms = 11;
+  HealthState health = 12;
+}
+
+// ServiceEdge represents a connection between services.
+message ServiceEdge {
+  string source_service_id = 1;
+  string target_service = 2;
+  ConnectionState state = 3;
+  int64 last_activity_ms = 4;
+  uint64 total_requests = 5;
+  uint64 total_errors = 6;
+  double avg_latency_ms = 7;
+  double rps = 8;
+}
+
+// TopologyUpdate represents a change to the topology graph.
+message TopologyUpdate {
+  UpdateType type = 1;
+  optional ServiceNode node = 2;
+  optional ServiceEdge edge = 3;
+  optional TopologySnapshot snapshot = 4;
+}
+
+// TopologyService tracks service liveness and activity.
+service TopologyService {
+  // Register a service (server or client).
+  rpc RegisterService(RegisterServiceRequest) returns (RegisterServiceResponse);
+  // Heartbeat keeps a service alive.
+  rpc Heartbeat(stream HeartbeatRequest) returns (stream HeartbeatResponse);
+  // ReportActivity is optional activity reporting.
+  rpc ReportActivity(stream ReportActivityRequest) returns (ReportActivityResponse);
+  // Unregister a service on graceful shutdown.
+  rpc UnregisterService(UnregisterServiceRequest) returns (UnregisterServiceResponse);
+  // GetTopology returns the current snapshot.
+  rpc GetTopology(GetTopologyRequest) returns (GetTopologyResponse);
+  // WatchTopology streams topology updates.
+  rpc WatchTopology(WatchTopologyRequest) returns (stream WatchTopologyResponse);
+}
