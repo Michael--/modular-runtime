@@ -145,10 +145,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
   }
 
   let mut interval = tokio::time::interval(Duration::from_secs(2));
+
+  let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+  let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+
   loop {
     tokio::select! {
-      _ = tokio::signal::ctrl_c() => {
-        println!("Received Ctrl+C, shutting down.");
+      _ = sigterm.recv() => {
+        println!("Received SIGTERM, shutting down.");
+        if let Some(sid) = service_id {
+          let unregister_req = UnregisterRequest { service_id: sid };
+          let _ = http_client
+            .post(format!("{}/unregister", topology_proxy))
+            .json(&unregister_req)
+            .send()
+            .await;
+        }
+        break;
+      }
+      _ = sigint.recv() => {
+        println!("Received SIGINT (Ctrl+C), shutting down.");
         if let Some(sid) = service_id {
           let unregister_req = UnregisterRequest { service_id: sid };
           let _ = http_client
