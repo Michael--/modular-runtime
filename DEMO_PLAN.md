@@ -592,7 +592,245 @@ export function TopologyView() {
 
 ## 🔀 Varianten-Vergleich: Topology Service
 
-### Variante 1: Heartbeat-basiert ⭐ **EMPFOHLEN**
+### Variante 0: Transparent Proxy/Bridge 🎭 **[NEUE IDEE]**
+
+**Architektur**: Topology Service als **gRPC-Proxy zwischen allen Services**
+
+**Wie es funktioniert**:
+
+```
+Client                TopologyService (Proxy)              Calculator-Server
+  |                           |                                    |
+  |--1. Broker-Lookup-------->|                                    |
+  |   "CalculatorService"     |                                    |
+  |<--Returns: localhost:50053 (TOPOLOGY, nicht Server direkt!)    |
+  |                           |                                    |
+  |--2. Add(2, 3)------------>|  ← TopologyService empfängt Call  |
+  |                           |--3. Forward Add(2, 3)------------->|
+  |                           |    ← Proxy leitet weiter           |
+  |                           |                                    |
+  |                           |<--4. Result: 5--------------------|
+  |<--5. Result: 5------------|  ← TopologyService leitet zurück  |
+  |                           |                                    |
+  |                           [Tracks: Client->Server, method, latency, timestamp]
+```
+
+**Broker-Integration**:
+
+```typescript
+// Broker Config: Welche Services werden proxied?
+const topologyConfig = {
+  proxiedServices: ['CalculatorService', 'PipelineService'],
+  topologyAddress: '127.0.0.1:50053',
+}
+
+// Broker.LookupService() Logik:
+if (topologyConfig.proxiedServices.includes(serviceName)) {
+  // Return TopologyService address (Proxy)
+  return {
+    address: topologyConfig.topologyAddress,
+    protocol: 'grpc',
+    proxied: true,
+    targetService: serviceName, // Original-Service-Name
+  }
+} else {
+  // Return direct service address
+  return serviceRegistry.get(serviceName)
+}
+```
+
+**TopologyService Implementation**:
+
+```typescript
+class TopologyProxyService {
+  private protoDescriptors = new Map<string, grpc.ServiceDefinition>()
+  private serviceTargets = new Map<string, string>() // service -> address
+  private connections = new Map<string, ConnectionStats>()
+
+  async initialize() {
+    // Load Proto-Definitionen
+    this.protoDescriptors.set('CalculatorService', calculatorProto.CalculatorService)
+    this.protoDescriptors.set('PipelineService', pipelineProto.PipelineService)
+
+    // Lookup tatsächliche Service-Adressen vom Broker
+    for (const serviceName of this.protoDescriptors.keys()) {
+      const address = await this.broker.lookupDirect(serviceName) // Direkt, nicht proxied
+      this.serviceTargets.set(serviceName, address)
+    }
+
+    // Starte dynamische Proxy-Server für jeden Service
+    for (const [serviceName, proto] of this.protoDescriptors) {
+      this.createProxyServer(serviceName, proto)
+    }
+  }
+
+  private createProxyServer(serviceName: string, serviceDefinition: grpc.ServiceDefinition) {
+    const proxyImplementation: any = {}
+
+    // Dynamisch alle Methoden proxyen
+    for (const [methodName, methodDef] of Object.entries(serviceDefinition)) {
+      proxyImplementation[methodName] = async (call: any, callback: any) => {
+        const startTime = Date.now()
+        const clientId = call.metadata.get('client-id')?.[0] || 'unknown'
+
+        // Track Connection
+        this.trackConnection(clientId, serviceName, methodName)
+
+        try {
+          // Forward zu echtem Service
+          const targetAddress = this.serviceTargets.get(serviceName)
+          const client = new grpc.Client(targetAddress, grpc.credentials.createInsecure())
+
+          const result = await client[methodName](call.request)
+
+          const latency = Date.now() - startTime
+          this.recordActivity(clientId, serviceName, methodName, latency, true)
+
+          callback(null, result)
+        } catch (error) {
+          const latency = Date.now() - startTime
+          this.recordActivity(clientId, serviceName, methodName, latency, false, error)
+
+          callback(error)
+        }
+      }
+    }
+
+    // Starte gRPC-Server mit Proxy-Implementation
+    const server = new grpc.Server()
+    server.addService(serviceDefinition, proxyImplementation)
+    server.bindAsync('0.0.0.0:50053', grpc.ServerCredentials.createInsecure(), () => {
+      console.log(`Topology Proxy listening for ${serviceName}`)
+    })
+  }
+
+  private trackConnection(clientId: string, targetService: string, method: string) {
+    const key = `${clientId}->${targetService}`
+    if (!this.connections.has(key)) {
+      this.connections.set(key, {
+        source: clientId,
+        target: targetService,
+        firstSeen: Date.now(),
+        lastSeen: Date.now(),
+        totalRequests: 0,
+        methods: new Set(),
+      })
+      this.notifyWatchers({ type: 'CONNECTION_ADDED', connection: key })
+    }
+
+    const conn = this.connections.get(key)!
+    conn.lastSeen = Date.now()
+    conn.totalRequests++
+    conn.methods.add(method)
+  }
+}
+```
+
+**Proto-Definition** (minimal):
+
+```protobuf
+service TopologyService {
+  // Configuration: Welche Services sollen proxied werden?
+  rpc RegisterProxiedService(ProxyConfig) returns (ProxyStatus);
+
+  // Topology-Queries (wie gehabt)
+  rpc GetTopology(TopologyQuery) returns (TopologySnapshot);
+  rpc WatchTopology(TopologyQuery) returns (stream TopologyUpdate);
+}
+
+message ProxyConfig {
+  string service_name = 1;        // "CalculatorService"
+  string target_address = 2;      // "127.0.0.1:50051" (echter Service)
+  bytes proto_descriptor = 3;     // FileDescriptorSet (compiled proto)
+}
+```
+
+**Client-Änderungen**: **KEINE!** ✅
+
+```typescript
+// Client-Code bleibt UNVERÄNDERT
+const broker = new BrokerClient('127.0.0.1:50050')
+const calcAddress = await broker.lookupService('CalculatorService')
+// ← Bekommt TopologyService-Adresse (transparent!)
+
+const client = new CalculatorClient(calcAddress.address)
+const result = await client.add({ a: 2, b: 3 })
+// ← Geht durch TopologyService-Proxy (transparent getrackt!)
+```
+
+**Server-Änderungen**: **KEINE!** ✅
+
+```typescript
+// Calculator-Server bleibt UNVERÄNDERT
+const server = new grpc.Server()
+server.addService(CalculatorService, implementation)
+server.bindAsync('0.0.0.0:50051', ...) // ← Originale Adresse
+// ← TopologyService connected sich hierhin
+```
+
+---
+
+**Pros**:
+
+- ✅ **Komplett transparent** - Services ändern NICHTS (kein Heartbeat-Code!)
+- ✅ **Multi-Language automatisch** - funktioniert für ALLE Sprachen
+- ✅ **Echte RPS/Latency** - tatsächlicher Traffic wird gemessen
+- ✅ **Keine Client-Libraries** - kein TopologyReporter nötig
+- ✅ **Automatisches Tracking** - jeder Call wird erfasst
+- ✅ **Broker-Integration** - Services "wissen" nichts von Proxy
+
+**Cons**:
+
+- ❌ **Proto-Abhängigkeit** - TopologyService muss ALLE Protos kennen/laden
+- ❌ **Single Point of Failure** - Topology-Crash = alle Calls fehlschlagen
+- ❌ **Latency-Overhead** - zusätzlicher Hop bei jedem Call (~1-5ms)
+- ❌ **Komplexität** - dynamisches Proto-Loading, Reflection nötig
+- ❌ **Keine Liveness für idle Services** - nur Call-basiert (kein Heartbeat für passive Connections)
+- ❌ **Skalierung schwierig** - Proxy wird Bottleneck bei high RPS
+- ❌ **Streaming kompliziert** - Bidirectional Streams durchzureichen ist aufwendig
+
+**Aufwand**: 7-10 Tage (Proto-Reflection, dynamisches Proxying, Broker-Integration)
+
+**Use Cases**:
+
+- 🎯 **Perfekt für Demos** - keine Code-Änderungen nötig
+- 🎯 **Entwicklung/Debugging** - schnell aktivierbar
+- ⚠️ **Production problematisch** - SPOF, Latency-Overhead
+
+---
+
+### Variante 0b: Hybrid Proxy + Heartbeat 🔀 **[BEST OF BOTH WORLDS?]**
+
+**Kombination**:
+
+- **Proxy für Activity-Tracking** (RPS, Latency, Methoden)
+- **Lightweight Heartbeat für Liveness** (idle Services, STALE-Detection)
+- **Broker entscheidet**: Proxy optional, Heartbeat immer
+
+**Architektur**:
+
+```
+Client --> [Proxy optional] --> Server
+  |              |                 |
+  └──────────────┴─────────────────┴─→ TopologyService
+         Heartbeat (alle 5s) + Activity (via Proxy)
+```
+
+**Vorteile**:
+
+- ✅ Liveness auch für idle Services (Heartbeat)
+- ✅ Kein SPOF: Proxy-Crash → Client kann direkt zu Server fallback
+- ✅ Echte RPS-Daten via Proxy
+- ✅ Services brauchen nur minimalen Heartbeat-Code (kein Activity-Reporting!)
+
+**Nachteile**:
+
+- ⚠️ Höhere Komplexität (zwei Mechanismen)
+- ⚠️ Broker-Logik kompliziert (Fallback-Handling)
+
+---
+
+### Variante 1: Heartbeat-basiert ⭐ **EMPFOHLEN FÜR PRODUCTION**
 
 **Architektur**:
 
@@ -709,16 +947,21 @@ const server = new Server({
 
 ### Entscheidungsmatrix
 
-| Kriterium                  | Heartbeat ⭐ | Interceptor ❌ | Hybrid 🤔 |
-| -------------------------- | ------------ | -------------- | --------- |
-| Multi-Language-Support     | ✅ Ja        | ⚠️ Limitiert   | ✅ Ja     |
-| Liveness-Detection         | ✅ Ja        | ❌ Nein        | ✅ Ja     |
-| Zombie-Services verhindern | ✅ Ja        | ❌ Nein        | ✅ Ja     |
-| Explizit/Debuggbar         | ✅ Ja        | ❌ Nein        | ⚠️ Mixed  |
-| Transparent                | ❌ Nein      | ✅ Ja          | ⚠️ Mixed  |
-| Type-Safety                | ✅ Ja        | ⚠️ Teilweise   | ✅ Ja     |
-| Aufwand                    | 4-5 Tage     | 3-4 Tage       | 6-7 Tage  |
-| Production-Ready           | ✅ Ja        | ⚠️ Risiko      | ✅ Ja     |
+| Kriterium                  | Proxy 🎭     | Heartbeat ⭐ | Interceptor ❌ | Hybrid Proxy+HB 🔀 |
+| -------------------------- | ------------ | ------------ | -------------- | ------------------ |
+| Multi-Language-Support     | ✅ Ja        | ✅ Ja        | ⚠️ Limitiert   | ✅ Ja              |
+| Liveness-Detection         | ⚠️ Call-only | ✅ Ja        | ❌ Nein        | ✅ Ja              |
+| Zombie-Services verhindern | ⚠️ Delayed   | ✅ Ja        | ❌ Nein        | ✅ Ja              |
+| Explizit/Debuggbar         | ⚠️ Hidden    | ✅ Ja        | ❌ Nein        | ⚠️ Complex         |
+| Transparent                | ✅✅ Ja      | ❌ Nein      | ✅ Ja          | ⚠️ Mixed           |
+| Code-Änderungen            | ✅ Keine     | ❌ Ja        | ⚠️ Minimal     | ⚠️ Minimal         |
+| Single Point of Failure    | ❌ Ja (!)    | ✅ Nein      | ✅ Nein        | ⚠️ Degradable      |
+| Latency-Overhead           | ❌ 1-5ms     | ✅ Minimal   | ⚠️ Gering      | ❌ 1-5ms           |
+| Proto-Abhängigkeit         | ❌ Hoch      | ✅ Keine     | ✅ Keine       | ❌ Hoch            |
+| Streaming-Support          | ⚠️ Komplex   | ✅ Native    | ⚠️ Komplex     | ⚠️ Komplex         |
+| Aufwand                    | 7-10 Tage    | 4-5 Tage     | 3-4 Tage       | 8-12 Tage          |
+| Production-Ready           | ⚠️ Risiko    | ✅ Ja        | ⚠️ Risiko      | ⚠️ Komplex         |
+| **Demo-Wert**              | ✅✅ Hoch    | ✅ Gut       | ⚠️ Hidden      | ✅ Sehr hoch       |
 
 ---
 
@@ -798,6 +1041,282 @@ const server = new Server({
 ---
 
 ### 🎯 Umsetzungsempfehlung
+
+#### **Für Production: Variante 1 (Heartbeat)** ⭐
+
+**Begründung**:
+
+1. ✅ Kein Single Point of Failure
+2. ✅ Minimaler Latency-Overhead
+3. ✅ Production-Ready und robust
+4. ✅ Explizit und wartbar
+5. ✅ Funktioniert in ALLEN Sprachen gleich gut
+
+**Trade-off**: Services müssen Code ändern (akzeptabel für Production)
+
+---
+
+#### **Für Demos/Development: Variante 0b (Hybrid Proxy+Heartbeat)** 🎭
+
+**Begründung**:
+
+1. ✅ **Schnelle Integration** - minimale Code-Änderungen
+2. ✅ **Beeindruckend** - "es funktioniert einfach"
+3. ✅ **Liveness gesichert** - Heartbeat für idle Services
+4. ✅ **Fallback** - Proxy optional, direkte Calls möglich
+5. ⚠️ Komplexer als pure Varianten, aber zeigt "Enterprise-Features"
+
+**Use Case**:
+
+```yaml
+# config.yaml - Demo-Modus
+topology:
+  mode: 'hybrid' # proxy + heartbeat
+  proxy:
+    enabled: true
+    services: ['CalculatorService'] # Nur Calculator proxied
+  heartbeat:
+    enabled: true
+    interval: 5000 # alle Services senden Heartbeat
+
+# config.yaml - Production-Modus
+topology:
+  mode: 'heartbeat' # nur Heartbeat
+  proxy:
+    enabled: false # Kein SPOF
+  heartbeat:
+    enabled: true
+    interval: 5000
+```
+
+**Implementation-Plan** (Hybrid):
+
+**Week 1**: Heartbeat-Basis (wie Variante 1)
+
+- Proto, Service, Client-Libraries
+- Minimaler Heartbeat-Code in Services
+
+**Week 2**: Proxy-Layer (Optional)
+
+- Dynamisches Proto-Loading
+- Broker-Integration (Proxy-Routing)
+- Fallback-Logik
+
+**Week 3**: Demo
+
+- Toggle: Proxy on/off
+- Zeige Transparenz (Proxy) vs Explizit (Heartbeat)
+
+---
+
+#### **Vergleich: Was ist besser für welchen Zweck?**
+
+| Use Case                         | Empfehlung   | Grund                                 |
+| -------------------------------- | ------------ | ------------------------------------- |
+| **Production Services**          | ✅ Heartbeat | Kein SPOF, minimal overhead           |
+| **Schnelle Demos**               | ✅ Proxy     | Keine Code-Änderungen                 |
+| **Enterprise Demo**              | ✅ Hybrid    | Zeigt beide Ansätze                   |
+| **Development/Debugging**        | ✅ Proxy     | Schnell aktivierbar                   |
+| **High-RPS Services**            | ✅ Heartbeat | Kein Proxy-Bottleneck                 |
+| **Legacy Integration**           | ✅ Proxy     | Services können nicht geändert werden |
+| **Microservices (50+ Services)** | ✅ Heartbeat | Skaliert besser                       |
+
+---
+
+### 🔬 Technische Deep-Dives
+
+#### **Challenge 1: Dynamisches Proto-Loading (Proxy-Variante)**
+
+**Problem**: TopologyService muss Proto-Definitionen zur Laufzeit laden
+
+**Lösung A**: Proto-Reflection (gRPC Server Reflection)
+
+```typescript
+import { loadPackageDefinition } from '@grpc/grpc-js'
+import { loadSync } from '@grpc/proto-loader'
+
+// Zur Laufzeit Proto laden
+const packageDef = loadSync('calculator.proto', {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true,
+})
+
+const protoDescriptor = loadPackageDefinition(packageDef)
+const CalculatorService = protoDescriptor.calculator.CalculatorService
+
+// Dynamisch Proxy erstellen
+createDynamicProxy(CalculatorService, targetAddress)
+```
+
+**Lösung B**: FileDescriptorSet (Pre-compiled)
+
+```bash
+# Proto zu Descriptor kompilieren
+protoc --descriptor_set_out=calculator.desc --include_imports calculator.proto
+```
+
+```typescript
+// Zur Laufzeit laden
+const descriptorBuffer = fs.readFileSync('calculator.desc')
+const descriptor = grpc.loadPackageDefinition(descriptorBuffer)
+```
+
+---
+
+#### **Challenge 2: Broker-Routing (Proxy-Variante)**
+
+**Problem**: Broker muss entscheiden ob Proxy oder direkt
+
+**Lösung**: Service-Metadata erweitern
+
+```typescript
+// Service Registration
+broker.registerService({
+  serviceName: 'CalculatorService',
+  address: '127.0.0.1:50051',
+  proxied: true, // ← Wird vom Topology proxied
+  proxyAddress: '127.0.0.1:50053', // TopologyService
+})
+
+// Lookup-Logik
+async lookupService(serviceName: string) {
+  const registration = this.registry.get(serviceName)
+
+  if (registration.proxied) {
+    return {
+      address: registration.proxyAddress, // TopologyService
+      proxied: true,
+      targetAddress: registration.address, // Original (für Fallback)
+    }
+  }
+
+  return {
+    address: registration.address, // Direkt
+    proxied: false,
+  }
+}
+```
+
+---
+
+#### **Challenge 3: Streaming-Support (Proxy-Variante)**
+
+**Problem**: Bidirectional Streams durchreichen ist komplex
+
+**Beispiel**: Calculator mit Streaming
+
+```protobuf
+service CalculatorService {
+  rpc StreamCalculate(stream CalculateRequest) returns (stream CalculateResponse);
+}
+```
+
+**Proxy-Implementation**:
+
+```typescript
+streamCalculate(call: grpc.ServerDuplexStream) {
+  const targetClient = new CalculatorClient(targetAddress)
+  const targetStream = targetClient.streamCalculate()
+
+  // Forward client → server
+  call.on('data', (request) => {
+    this.trackActivity('client', 'server', 'StreamCalculate')
+    targetStream.write(request)
+  })
+
+  // Forward server → client
+  targetStream.on('data', (response) => {
+    this.trackActivity('server', 'client', 'StreamCalculate')
+    call.write(response)
+  })
+
+  // Error-Handling
+  call.on('error', (err) => targetStream.cancel())
+  targetStream.on('error', (err) => call.destroy(err))
+
+  // Cleanup
+  call.on('end', () => targetStream.end())
+  targetStream.on('end', () => call.end())
+}
+```
+
+**Trade-off**: Komplex, aber machbar
+
+---
+
+### 🎬 Demo-Szenarien für Proxy-Variante
+
+#### **Szenario 1: "Zero-Code Integration"**
+
+**Narrative**: "Füge Topology-Tracking ohne Code-Änderungen hinzu"
+
+```bash
+# 1. Alte Config (ohne Topology)
+services:
+  - name: calculator-server
+    command: node dist/calculator-server.js
+    port: 50051
+
+# 2. Neue Config (mit Topology-Proxy)
+services:
+  - name: topology-service
+    command: node dist/topology-service.js
+    port: 50053
+    env:
+      PROXIED_SERVICES: "CalculatorService"
+
+  - name: calculator-server
+    command: node dist/calculator-server.js
+    port: 50051
+    # ← KEINE CODE-ÄNDERUNGEN!
+
+# 3. Supervisor restart → Topology arbeitet sofort!
+```
+
+**Demo-Effekt**: Services unverändert, Graph zeigt sofort alle Connections
+
+---
+
+#### **Szenario 2: "Debugging with Proxy"**
+
+**Narrative**: "Aktiviere Topology nur für Debugging"
+
+```typescript
+// Toggle Proxy on/off via Dashboard
+topologyClient.setProxyMode({
+  enabled: true,
+  services: ['CalculatorService'],
+})
+
+// → Broker routet alle Calls durch Proxy
+// → Detaillierte Logs in Topology
+// → Nach Debugging: Proxy off → Direkte Calls wieder aktiv
+```
+
+**Demo-Effekt**: Production-Mode (direkt) vs Debug-Mode (proxied) umschaltbar
+
+---
+
+### 💡 Finale Empfehlung
+
+**Wenn Zeit/Budget knapp**: ✅ **Variante 1 (Heartbeat)** - Production-Ready, klar
+
+**Wenn Demo-Wow-Faktor wichtig**: ✅ **Variante 0b (Hybrid)** - Transparenz + Liveness
+
+**Wenn nur Proof-of-Concept**: ✅ **Variante 0 (Pure Proxy)** - Schnell, beeindruckend
+
+**Für dein Projekt empfehle ich**:
+
+1. **Start mit Heartbeat** (Variante 1) - Solide Basis
+2. **Optional: Proxy-Layer später hinzufügen** (backward-compatible)
+3. **Demo-Modus** zeigt beide: "Heartbeat für Production, Proxy für Quick-Integration"
+
+---
+
+### 🎯 Umsetzungsempfehlung (ORIGINAL)
 
 **Start mit Variante 1 (Heartbeat-basiert)**
 
