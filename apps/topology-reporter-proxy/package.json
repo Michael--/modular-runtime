@@ -10,8 +10,11 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.9",
+    "@modular-runtime/topology-reporter": "workspace:*"
+  },
   "devDependencies": {
-    "@modular-runtime/topology-reporter": "workspace:*",
     "@types/node": "^25.1.0",
     "rimraf": "^6.1.2",
     "typescript": "^5.5.4",

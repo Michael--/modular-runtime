@@ -363,10 +363,14 @@ importers:
         version: 7.3.1(@types/node@25.1.0)(jiti@2.6.1)(yaml@2.8.2)
 
   apps/topology-reporter-proxy:
-    devDependencies:
+    dependencies:
+      '@grpc/grpc-js':
+        specifier: ^1.10.9
+        version: 1.14.3
       '@modular-runtime/topology-reporter':
         specifier: workspace:*
         version: link:../../packages/topology-reporter
+    devDependencies:
       '@types/node':
         specifier: ^25.1.0
         version: 25.1.0
