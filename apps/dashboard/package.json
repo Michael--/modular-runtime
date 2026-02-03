@@ -1,0 +1,19 @@
+{
+  "name": "@modular-runtime/dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.5.4",
+    "vite": "^7.3.1"
+  }
+}

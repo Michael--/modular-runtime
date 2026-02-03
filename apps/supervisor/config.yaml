@@ -27,6 +27,22 @@ services:
     restartOnUnexpectedExit: true
     logColor: red
 
+  - name: topology-proxy
+    command: node
+    args:
+      - apps/topology-proxy/dist/topology-proxy.js
+      - --grpc-address
+      - 127.0.0.1:50053
+      - --http-port
+      - 50054
+    cwd: ../..
+    env: {}
+    restart: none
+    maxRestarts: 5
+    restartDelay: 3000
+    restartOnUnexpectedExit: true
+    logColor: magenta
+
   - name: calculator-server
     command: node
     args:
@@ -85,6 +101,25 @@ services:
     restartDelay: 3000
     restartOnUnexpectedExit: true
     logColor: yellow
+
+  - name: dashboard
+    command: pnpm
+    args:
+      - -C
+      - apps/dashboard
+      - dev
+      - --
+      - --host
+      - 127.0.0.1
+      - --port
+      - 3000
+    cwd: ../..
+    env: {}
+    restart: none
+    maxRestarts: 5
+    restartDelay: 3000
+    restartOnUnexpectedExit: true
+    logColor: green
 
 ui:
   refreshRate: 1000

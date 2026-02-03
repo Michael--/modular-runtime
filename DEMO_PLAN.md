@@ -2455,11 +2455,11 @@ export function useTopologyStream() {
 
 **Sprint 3**
 
-- [ ] Add dashboard data store for topology stream (zustand)
-- [ ] Connect client wiring (Connect transport)
-- [ ] Implement Topology graph component (React Flow)
-- [ ] Add node/edge styling based on health/state
-- [ ] Add basic topology detail panel (node/edge info)
+- [x] Add dashboard data store for topology stream (zustand)
+- [x] Wire SSE proxy client for quick E2E (replaces Connect for now)
+- [x] Implement Topology graph component (React Flow)
+- [x] Add node/edge styling based on health/state
+- [x] Add basic topology overview panel
 
 **Sprint 4**
 
