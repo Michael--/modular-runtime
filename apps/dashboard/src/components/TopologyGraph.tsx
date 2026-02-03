@@ -126,7 +126,13 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
 
   return (
     <div className="graph-shell">
-      <ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.2 }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        style={{ width: '100%', height: '100%' }}
+      >
         <Background />
         <Controls />
       </ReactFlow>

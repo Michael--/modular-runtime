@@ -1,3 +1,4 @@
+import { Badge, Table } from '@mantine/core'
 import type { ServiceEdge } from '../types/topology'
 import { getConnectionStateColor, getConnectionStateLabel } from '../utils/topologyFormat'
 
@@ -12,33 +13,42 @@ export const ConnectionsTable = ({ edges }: ConnectionsTableProps): JSX.Element 
   const sorted = [...edges].sort((a, b) => edgeKey(a).localeCompare(edgeKey(b)))
 
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Source ID</th>
-          <th>Target Service</th>
-          <th>State</th>
-          <th>RPS</th>
-          <th>Avg Latency</th>
-          <th>Total Requests</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table withTableBorder highlightOnHover striped>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Source ID</Table.Th>
+          <Table.Th>Target Service</Table.Th>
+          <Table.Th>State</Table.Th>
+          <Table.Th>RPS</Table.Th>
+          <Table.Th>Avg Latency</Table.Th>
+          <Table.Th>Total Requests</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
         {sorted.map((edge) => (
-          <tr key={edgeKey(edge)}>
-            <td>{edge.sourceServiceId}</td>
-            <td>{edge.targetService}</td>
-            <td>
-              <span className="pill" style={{ background: getConnectionStateColor(edge.state) }}>
+          <Table.Tr key={edgeKey(edge)}>
+            <Table.Td>{edge.sourceServiceId}</Table.Td>
+            <Table.Td>{edge.targetService}</Table.Td>
+            <Table.Td>
+              <Badge
+                variant="filled"
+                radius="sm"
+                size="sm"
+                style={{
+                  backgroundColor: getConnectionStateColor(edge.state),
+                  color: '#0b1120',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {getConnectionStateLabel(edge.state)}
-              </span>
-            </td>
-            <td>{edge.rps.toFixed(2)}</td>
-            <td>{edge.avgLatencyMs.toFixed(1)} ms</td>
-            <td>{edge.totalRequests}</td>
-          </tr>
+              </Badge>
+            </Table.Td>
+            <Table.Td>{edge.rps.toFixed(2)}</Table.Td>
+            <Table.Td>{edge.avgLatencyMs.toFixed(1)} ms</Table.Td>
+            <Table.Td>{edge.totalRequests}</Table.Td>
+          </Table.Tr>
         ))}
-      </tbody>
-    </table>
+      </Table.Tbody>
+    </Table>
   )
 }
