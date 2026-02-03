@@ -19,6 +19,7 @@ interface ServiceRecord {
   node: ServiceNode
   lastHeartbeatMs: number
   lastActivityMs: number
+  lastNodeUpdateMs: number
   heartbeatIntervalMs: number
   timeoutMultiplier: number
 }
@@ -47,6 +48,8 @@ export interface TopologyStoreOptions {
   idleTimeoutMs?: number
   /** Activity aggregation flush interval. */
   activityFlushMs?: number
+  /** Throttle interval for node update broadcasts. */
+  nodeUpdateThrottleMs?: number
   /** Custom time provider for deterministic tests. */
   now?: () => number
   /** Custom service ID generator for deterministic tests. */
@@ -72,6 +75,7 @@ export class TopologyStore {
   private readonly timeoutMultiplier: number
   private readonly idleTimeoutMs: number
   private readonly activityFlushMs: number
+  private readonly nodeUpdateThrottleMs: number
   private readonly now: () => number
   private readonly generateId: () => string
   private lastActivityFlushMs: number
@@ -81,6 +85,7 @@ export class TopologyStore {
     this.timeoutMultiplier = options.timeoutMultiplier ?? 3
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30000
     this.activityFlushMs = options.activityFlushMs ?? 1000
+    this.nodeUpdateThrottleMs = options.nodeUpdateThrottleMs ?? 5000
     this.now = options.now ?? (() => Date.now())
     this.generateId = options.generateId ?? (() => randomUUID())
     this.lastActivityFlushMs = this.now()
@@ -120,6 +125,7 @@ export class TopologyStore {
       node,
       lastHeartbeatMs: now,
       lastActivityMs: 0,
+      lastNodeUpdateMs: now,
       heartbeatIntervalMs: this.heartbeatIntervalMs,
       timeoutMultiplier: this.timeoutMultiplier,
     }
@@ -159,18 +165,23 @@ export class TopologyStore {
     record.node.lastHeartbeatMs = String(now)
 
     const updates: TopologyUpdate[] = []
+    let forceUpdate = false
     const nextState =
       record.lastActivityMs > 0
         ? ServiceState.SERVICE_STATE_IDLE
         : ServiceState.SERVICE_STATE_REGISTERED
     if (record.node.state === ServiceState.SERVICE_STATE_STALE) {
       record.node.state = nextState
-      updates.push(this.createNodeUpdate(UpdateType.UPDATE_TYPE_NODE_UPDATED, record.node))
+      forceUpdate = true
     }
 
     if (request.health?.state !== undefined && request.health.state !== record.node.health) {
       record.node.health = request.health.state
-      updates.push(this.createNodeUpdate(UpdateType.UPDATE_TYPE_NODE_UPDATED, record.node))
+      forceUpdate = true
+    }
+
+    if (forceUpdate || this.shouldEmitNodeUpdate(record, now)) {
+      this.queueNodeUpdate(record, updates, now)
     }
 
     return updates
@@ -193,9 +204,14 @@ export class TopologyStore {
     record.node.lastActivityMs = String(now)
 
     const updates: TopologyUpdate[] = []
+    let forceUpdate = false
     if (record.node.state !== ServiceState.SERVICE_STATE_ACTIVE) {
       record.node.state = ServiceState.SERVICE_STATE_ACTIVE
-      updates.push(this.createNodeUpdate(UpdateType.UPDATE_TYPE_NODE_UPDATED, record.node))
+      forceUpdate = true
+    }
+
+    if (forceUpdate || this.shouldEmitNodeUpdate(record, now)) {
+      this.queueNodeUpdate(record, updates, now)
     }
 
     const edgeKey = this.edgeKey(event.serviceId, event.targetService)
@@ -313,14 +329,14 @@ export class TopologyStore {
         record.node.state !== ServiceState.SERVICE_STATE_STALE
       ) {
         record.node.state = ServiceState.SERVICE_STATE_STALE
-        updates.push(this.createNodeUpdate(UpdateType.UPDATE_TYPE_NODE_UPDATED, record.node))
+        this.queueNodeUpdate(record, updates, now)
       }
 
       if (record.node.state === ServiceState.SERVICE_STATE_ACTIVE) {
         const idleElapsed = now - record.lastActivityMs
         if (record.lastActivityMs > 0 && idleElapsed > this.idleTimeoutMs) {
           record.node.state = ServiceState.SERVICE_STATE_IDLE
-          updates.push(this.createNodeUpdate(UpdateType.UPDATE_TYPE_NODE_UPDATED, record.node))
+          this.queueNodeUpdate(record, updates, now)
         }
       }
     }
@@ -382,6 +398,18 @@ export class TopologyStore {
 
   private getNow(nowMs?: number): number {
     return nowMs ?? this.now()
+  }
+
+  private shouldEmitNodeUpdate(record: ServiceRecord, now: number): boolean {
+    if (this.nodeUpdateThrottleMs <= 0) {
+      return true
+    }
+    return now - record.lastNodeUpdateMs >= this.nodeUpdateThrottleMs
+  }
+
+  private queueNodeUpdate(record: ServiceRecord, updates: TopologyUpdate[], now: number): void {
+    updates.push(this.createNodeUpdate(UpdateType.UPDATE_TYPE_NODE_UPDATED, record.node))
+    record.lastNodeUpdateMs = now
   }
 
   private createNodeUpdate(type: UpdateType, node: ServiceNode): TopologyUpdate {

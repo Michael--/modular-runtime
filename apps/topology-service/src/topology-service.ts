@@ -24,6 +24,7 @@ interface ServiceConfig {
   timeoutMultiplier: number
   idleTimeoutMs: number
   activityFlushMs: number
+  nodeUpdateThrottleMs: number
   sweepIntervalMs: number
 }
 
@@ -34,6 +35,7 @@ const parseArgs = (): ServiceConfig => {
   let timeoutMultiplier = 3
   let idleTimeoutMs = 30000
   let activityFlushMs = 1000
+  let nodeUpdateThrottleMs = 5000
   let sweepIntervalMs = 5000
 
   for (let i = 0; i < args.length; i++) {
@@ -53,6 +55,9 @@ const parseArgs = (): ServiceConfig => {
     } else if (args[i] === '--activity-flush-ms' && value) {
       activityFlushMs = Number.parseInt(value, 10)
       i++
+    } else if (args[i] === '--node-update-throttle-ms' && value) {
+      nodeUpdateThrottleMs = Number.parseInt(value, 10)
+      i++
     } else if (args[i] === '--sweep-interval-ms' && value) {
       sweepIntervalMs = Number.parseInt(value, 10)
       i++
@@ -65,6 +70,7 @@ const parseArgs = (): ServiceConfig => {
     timeoutMultiplier,
     idleTimeoutMs,
     activityFlushMs,
+    nodeUpdateThrottleMs,
     sweepIntervalMs,
   }
 }
@@ -75,6 +81,7 @@ const store = new TopologyStore({
   timeoutMultiplier: config.timeoutMultiplier,
   idleTimeoutMs: config.idleTimeoutMs,
   activityFlushMs: config.activityFlushMs,
+  nodeUpdateThrottleMs: config.nodeUpdateThrottleMs,
 })
 
 const watchers = new Set<grpc.ServerWritableStream<WatchTopologyRequest, WatchTopologyResponse>>()
