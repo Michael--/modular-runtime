@@ -2449,7 +2449,7 @@ export function useTopologyStream() {
 
 - [x] Add Topology reporter (TypeScript) package or module
 - [x] Wire TS calculator client/server to heartbeat + optional activity
-- [x] Add Rust reporter (tonic) and integrate with Rust client
+- [x] Add Rust reporter (HTTP POST via proxy) and integrate with Rust client
 - [x] Add Topology reporter HTTP proxy (TypeScript) for language-agnostic integration
 - [x] Add C++ reporter (HTTP POST) and integrate with C++ client
 - [ ] Add broker integration hooks (if required for discovery metadata)

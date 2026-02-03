@@ -1,5 +1,4 @@
 mod proto;
-mod topology_reporter;
 
 use clap::Parser;
 use proto::broker::v1::{
@@ -8,18 +7,59 @@ use proto::broker::v1::{
 use proto::calculator::v1::{
   calculator_service_client::CalculatorServiceClient, CalculateRequest, Operation,
 };
-use proto::runtime::v1::{ActivityType, ServiceLanguage, ServiceType};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::{error::Error, time::Duration};
 use tokio::time::Instant;
 use tonic::transport::Channel;
-use topology_reporter::{ActivityReport, TopologyReporter, TopologyReporterOptions};
 
 const BROKER_ADDRESS_ENV: &str = "BROKER_ADDRESS";
 const DEFAULT_BROKER_ADDRESS: &str = "127.0.0.1:50051";
-const DEFAULT_TOPOLOGY_ADDRESS: &str = "127.0.0.1:50053";
+const DEFAULT_TOPOLOGY_PROXY_ADDRESS: &str = "http://127.0.0.1:50055";
 const SERVICE_NAME: &str = "calculator.v1.CalculatorService";
 const DEFAULT_ROLE: &str = "default";
+
+#[derive(Serialize)]
+struct RegisterRequest {
+  #[serde(rename = "serviceName")]
+  service_name: String,
+  #[serde(rename = "serviceType")]
+  service_type: String,
+  language: String,
+  version: Option<String>,
+  #[serde(rename = "enableActivity")]
+  enable_activity: bool,
+}
+
+#[derive(Deserialize)]
+struct RegisterResponse {
+  #[serde(rename = "serviceId")]
+  service_id: String,
+  #[serde(rename = "heartbeatIntervalMs")]
+  heartbeat_interval_ms: i32,
+}
+
+#[derive(Serialize)]
+struct ActivityRequest {
+  #[serde(rename = "serviceId")]
+  service_id: String,
+  #[serde(rename = "targetService")]
+  target_service: String,
+  #[serde(rename = "type")]
+  activity_type: String,
+  #[serde(rename = "latencyMs")]
+  latency_ms: Option<i32>,
+  method: Option<String>,
+  success: Option<bool>,
+  #[serde(rename = "errorMessage")]
+  error_message: Option<String>,
+}
+
+#[derive(Serialize)]
+struct UnregisterRequest {
+  #[serde(rename = "serviceId")]
+  service_id: String,
+}
 
 #[derive(Parser)]
 #[command(name = "calculator-client-rust")]
@@ -29,9 +69,9 @@ struct Args {
     #[arg(long, default_value = DEFAULT_BROKER_ADDRESS)]
     broker_address: String,
 
-    /// Topology service address in the format host:port
-    #[arg(long, default_value = DEFAULT_TOPOLOGY_ADDRESS)]
-    topology_address: String,
+    /// Topology proxy address (HTTP)
+    #[arg(long, default_value = DEFAULT_TOPOLOGY_PROXY_ADDRESS)]
+    topology_proxy: String,
 
     /// Disable topology reporting
     #[arg(long)]
@@ -54,45 +94,52 @@ async fn main() -> Result<(), Box<dyn Error>> {
   println!("Connecting to calculator service at {}", calculator_url);
   let mut calculator = CalculatorServiceClient::connect(calculator_url).await?;
 
-  let mut topology_reporter: Option<TopologyReporter> = None;
+  let mut service_id: Option<String> = None;
+  let http_client = reqwest::Client::new();
+  let topology_proxy = std::env::var("TOPOLOGY_PROXY_ADDRESS").unwrap_or_else(|_| args.topology_proxy.clone());
 
   if topology_enabled {
-    let topology_address = std::env::var("TOPOLOGY_ADDRESS").unwrap_or(args.topology_address);
-    println!("Connecting to topology service at {}", topology_address);
+    println!("Registering with topology proxy at {}", topology_proxy);
 
-    let hostname = hostname::get()
+    let _hostname = hostname::get()
       .ok()
       .and_then(|h| h.into_string().ok())
       .unwrap_or_else(|| "unknown".to_string());
 
-    let options = TopologyReporterOptions {
-      topology_address,
+    let register_req = RegisterRequest {
       service_name: "calculator-client-rust".to_string(),
-      service_type: ServiceType::Client,
-      language: ServiceLanguage::Rust,
+      service_type: "SERVICE_TYPE_CLIENT".to_string(),
+      language: "SERVICE_LANGUAGE_RUST".to_string(),
       version: Some(env!("CARGO_PKG_VERSION").to_string()),
-      address: None,
-      host: Some(hostname),
       enable_activity: true,
     };
 
-    match TopologyReporter::new(options).await {
-      Ok(mut reporter) => {
-        match reporter.register().await {
-          Ok(handle) => {
-            println!(
-              "Registered with topology service: serviceId={}, heartbeat={}ms",
-              handle.service_id, handle.heartbeat_interval_ms
-            );
-            topology_reporter = Some(reporter);
+    match http_client
+      .post(format!("{}/register", topology_proxy))
+      .json(&register_req)
+      .send()
+      .await
+    {
+      Ok(response) => {
+        if response.status().is_success() {
+          match response.json::<RegisterResponse>().await {
+            Ok(register_resp) => {
+              println!(
+                "Registered with topology service: serviceId={}, heartbeat={}ms",
+                register_resp.service_id, register_resp.heartbeat_interval_ms
+              );
+              service_id = Some(register_resp.service_id);
+            }
+            Err(e) => {
+              eprintln!("Failed to parse registration response: {}", e);
+            }
           }
-          Err(e) => {
-            eprintln!("Failed to register with topology service: {}", e);
-          }
+        } else {
+          eprintln!("Failed to register with topology service: {}", response.status());
         }
       }
       Err(e) => {
-        eprintln!("Failed to connect to topology service: {}", e);
+        eprintln!("Failed to connect to topology proxy: {}", e);
       }
     }
   }
@@ -102,8 +149,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::select! {
       _ = tokio::signal::ctrl_c() => {
         println!("Received Ctrl+C, shutting down.");
-        if let Some(mut reporter) = topology_reporter {
-          let _ = reporter.shutdown().await;
+        if let Some(sid) = service_id {
+          let unregister_req = UnregisterRequest { service_id: sid };
+          let _ = http_client
+            .post(format!("{}/unregister", topology_proxy))
+            .json(&unregister_req)
+            .send()
+            .await;
         }
         break;
       }
@@ -122,32 +174,42 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let result = response.into_inner().result;
             println!("calculate({:.6} {} {:.6}) => {:.6}", a, operation_symbol(op), b, result);
 
-            if let Some(ref reporter) = topology_reporter {
-              reporter.report_activity(ActivityReport {
+            if let Some(ref sid) = service_id {
+              let activity_req = ActivityRequest {
+                service_id: sid.clone(),
                 target_service: "calculator-server".to_string(),
-                activity_type: ActivityType::ResponseReceived,
-                timestamp_ms: None,
+                activity_type: "ACTIVITY_TYPE_REQUEST_SENT".to_string(),
                 latency_ms: Some(latency_ms),
                 method: Some("CalculatorService/Calculate".to_string()),
                 success: Some(true),
                 error_message: None,
-              });
+              };
+              let _ = http_client
+                .post(format!("{}/activity", topology_proxy))
+                .json(&activity_req)
+                .send()
+                .await;
             }
           }
           Err(error) => {
             let latency_ms = started_at.elapsed().as_millis() as i32;
             eprintln!("Calculation failed: {}", error.message());
 
-            if let Some(ref reporter) = topology_reporter {
-              reporter.report_activity(ActivityReport {
+            if let Some(ref sid) = service_id {
+              let activity_req = ActivityRequest {
+                service_id: sid.clone(),
                 target_service: "calculator-server".to_string(),
-                activity_type: ActivityType::ResponseReceived,
-                timestamp_ms: None,
+                activity_type: "ACTIVITY_TYPE_ERROR".to_string(),
                 latency_ms: Some(latency_ms),
                 method: Some("CalculatorService/Calculate".to_string()),
                 success: Some(false),
                 error_message: Some(error.message().to_string()),
-              });
+              };
+              let _ = http_client
+                .post(format!("{}/activity", topology_proxy))
+                .json(&activity_req)
+                .send()
+                .await;
             }
           }
         }
