@@ -182,6 +182,7 @@ dependencies = [
  "hostname",
  "prost",
  "tokio",
+ "tokio-stream",
  "tonic",
  "topology-reporter-rust",
 ]

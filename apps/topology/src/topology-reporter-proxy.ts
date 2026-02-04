@@ -146,13 +146,31 @@ export const startTopologyReporterProxy = async (
     try {
       const body = await parseBody<RegisterRequest>(request)
 
-      if (!body.serviceName || !body.serviceType || !body.language) {
+      const normalizeOptionalString = (value: unknown): string | undefined => {
+        if (typeof value !== 'string') {
+          return undefined
+        }
+        const trimmed = value.trim()
+        if (!trimmed) {
+          return undefined
+        }
+        if (trimmed.toLowerCase() === 'null') {
+          return undefined
+        }
+        return trimmed
+      }
+
+      const serviceName = normalizeOptionalString(body.serviceName)
+      const serviceTypeKey = normalizeOptionalString(body.serviceType)
+      const languageKey = normalizeOptionalString(body.language)
+
+      if (!serviceName || !serviceTypeKey || !languageKey) {
         sendError(response, 400, 'Missing required fields: serviceName, serviceType, language')
         return
       }
 
-      const serviceType = ServiceType[body.serviceType]
-      const language = ServiceLanguage[body.language]
+      const serviceType = ServiceType[serviceTypeKey as keyof typeof ServiceType]
+      const language = ServiceLanguage[languageKey as keyof typeof ServiceLanguage]
 
       if (serviceType === undefined || language === undefined) {
         sendError(response, 400, 'Invalid serviceType or language')
@@ -161,17 +179,17 @@ export const startTopologyReporterProxy = async (
 
       const options: TopologyReporterOptions = {
         topologyAddress: config.topologyAddress,
-        serviceName: body.serviceName,
+        serviceName,
         serviceType,
         language,
-        version: body.version,
-        address: body.address,
-        host: body.host,
+        version: normalizeOptionalString(body.version),
+        address: normalizeOptionalString(body.address),
+        host: normalizeOptionalString(body.host),
         enableActivity: body.enableActivity ?? true,
         metadata: {
-          serviceInterface: body.serviceInterface,
-          serviceRole: body.serviceRole,
-          programName: body.programName,
+          serviceInterface: normalizeOptionalString(body.serviceInterface),
+          serviceRole: normalizeOptionalString(body.serviceRole),
+          programName: normalizeOptionalString(body.programName),
         },
       }
 

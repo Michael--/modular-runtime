@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { hostname } from 'node:os'
+import { setTimeout as delay } from 'node:timers/promises'
 import * as grpc from '@grpc/grpc-js'
 import {
   Operation,
@@ -20,6 +21,8 @@ import {
 
 const CALCULATOR_SERVICE_INTERFACE = 'calculator.v1.CalculatorService'
 const CALCULATOR_SERVICE_ROLE = 'default'
+const BIND_RETRY_BASE_MS = 1000
+const BIND_RETRY_MAX_MS = 15000
 
 const parseArgs = () => {
   const args = process.argv.slice(2)
@@ -52,6 +55,8 @@ const { url, port, brokerUrl, brokerPort, topologyAddress, topologyEnabled } = p
 
 let brokerManager: BrokerClientManager | null = null
 let topologyReporter: TopologyReporter | null = null
+let serverInstance: grpc.Server | null = null
+let shuttingDown = false
 
 function brokerManagerInstance() {
   console.log('Lookup calculator service')
@@ -105,20 +110,33 @@ async function startServer() {
   const serverOptions: grpc.ServerOptions = {
     // interceptors: [myServerInterceptor],
   }
-  const server = new grpc.Server(serverOptions)
-  server.addService(CalculatorServiceService, calculatorService)
-
   const address = `${url}:${port}`
-  server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err) => {
-    if (err) {
-      console.error('Failed to bind server:', err)
-      return
-    }
-    console.log(`Server is running at ${address}`)
-  })
+  let retryDelayMs = BIND_RETRY_BASE_MS
 
-  // await registerService(url, port);
-  console.log('Registered calculator service with broker')
+  while (!shuttingDown) {
+    const server = new grpc.Server(serverOptions)
+    server.addService(CalculatorServiceService, calculatorService)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err) => {
+          if (err) {
+            reject(err)
+            return
+          }
+          resolve()
+        })
+      })
+      server.start()
+      serverInstance = server
+      console.log(`Server is running at ${address}`)
+      return
+    } catch (error) {
+      console.error('Failed to bind server:', error)
+      server.forceShutdown()
+      await delay(retryDelayMs)
+      retryDelayMs = Math.min(retryDelayMs * 2, BIND_RETRY_MAX_MS)
+    }
+  }
 }
 
 async function startTopologyReporter() {
@@ -147,9 +165,20 @@ async function startTopologyReporter() {
 // Centralized shutdown logic
 async function handleShutdown() {
   console.log('Shutdown signal received')
+  shuttingDown = true
   try {
     await brokerManager?.shutdown()
     await topologyReporter?.shutdown()
+    if (serverInstance) {
+      await new Promise<void>((resolve) => {
+        serverInstance?.tryShutdown((error) => {
+          if (error) {
+            serverInstance?.forceShutdown()
+          }
+          resolve()
+        })
+      })
+    }
   } catch (error) {
     console.error('Error during shutdown:', error)
   }
@@ -162,9 +191,12 @@ process.on('SIGTERM', handleShutdown)
 
 async function main() {
   console.log('Starting calculator server...')
+  await startServer()
+  if (shuttingDown) {
+    return
+  }
   brokerManagerInstance()
   await startTopologyReporter()
-  startServer()
 }
 
 main().catch(console.error)

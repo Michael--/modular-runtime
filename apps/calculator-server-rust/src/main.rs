@@ -9,11 +9,13 @@ use proto::calculator::v1::calculator_service_server::{
   CalculatorService, CalculatorServiceServer,
 };
 use proto::calculator::v1::{CalculateRequest, CalculateResponse, Operation};
-use std::{error::Error, net::SocketAddr, time::Duration};
+use std::{error::Error, io::Error as IoError, io::ErrorKind as IoErrorKind, time::Duration};
+use tokio::net::TcpListener;
 use tokio::sync::watch;
 use tokio::time::sleep;
 use tonic::{Request, Response, Status};
 use tonic::transport::Server;
+use tokio_stream::wrappers::TcpListenerStream;
 use topology_reporter_rust::{
   ServiceLanguage, ServiceType, TopologyProxyClient, TopologyProxyConfig,
 };
@@ -86,9 +88,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
   let topology_enabled = !args.no_topology;
 
   let (service_host, service_port) = parse_host_port(&args.address)?;
-  let bind_address: SocketAddr = args.address.parse()?;
 
   let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
+  let listener = match bind_with_retry(&args.address, shutdown_rx.clone()).await {
+    Ok(listener) => listener,
+    Err(error) => {
+      eprintln!("Failed to bind {}: {}", args.address, error);
+      return Ok(());
+    }
+  };
 
   let broker_task = tokio::spawn(run_broker_registration(
     broker_address,
@@ -124,7 +133,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let service = CalculatorServiceImpl::default();
     Server::builder()
       .add_service(CalculatorServiceServer::new(service))
-      .serve_with_shutdown(bind_address, wait_for_shutdown(shutdown_rx.clone()))
+      .serve_with_incoming_shutdown(
+        TcpListenerStream::new(listener),
+        wait_for_shutdown(shutdown_rx.clone()),
+      )
       .await
   });
 
@@ -329,4 +341,43 @@ fn normalize_broker_url(address: &str) -> String {
 fn next_backoff(current: Duration) -> Duration {
   let next = current.as_secs().saturating_mul(2).max(1).min(15);
   Duration::from_secs(next)
+}
+
+async fn bind_with_retry(
+  address: &str,
+  mut shutdown: watch::Receiver<bool>,
+) -> Result<TcpListener, Box<dyn Error>> {
+  let mut delay = Duration::from_secs(1);
+
+  loop {
+    if *shutdown.borrow() {
+      return Err(Box::new(IoError::new(
+        IoErrorKind::Interrupted,
+        "Shutdown requested",
+      )));
+    }
+
+    match TcpListener::bind(address).await {
+      Ok(listener) => {
+        println!("Listening on {}", address);
+        return Ok(listener);
+      }
+      Err(error) => {
+        eprintln!("Failed to bind {}: {}", address, error);
+        delay = next_backoff(delay);
+      }
+    }
+
+    tokio::select! {
+      _ = shutdown.changed() => {
+        if *shutdown.borrow() {
+          return Err(Box::new(IoError::new(
+            IoErrorKind::Interrupted,
+            "Shutdown requested",
+          )));
+        }
+      }
+      _ = sleep(delay) => {}
+    }
+  }
 }
