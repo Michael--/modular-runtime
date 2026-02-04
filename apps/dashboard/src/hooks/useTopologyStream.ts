@@ -192,6 +192,7 @@ export const useTopologyStream = (streamUrl: string = DEFAULT_STREAM_URL): Topol
 
     source.onerror = () => {
       setStatus('error')
+      setSnapshot(initialSnapshot)
     }
 
     source.onmessage = (event: MessageEvent<string>) => {
