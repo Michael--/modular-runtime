@@ -39,6 +39,7 @@ export const startTopologyService = async (
     heartbeatIntervalMs: config.heartbeatIntervalMs,
     timeoutMultiplier: config.timeoutMultiplier,
     idleTimeoutMs: config.idleTimeoutMs,
+    unknownEdgeTimeoutMs: config.unknownEdgeTimeoutMs,
     activityFlushMs: config.activityFlushMs,
     nodeUpdateThrottleMs: config.nodeUpdateThrottleMs,
   })

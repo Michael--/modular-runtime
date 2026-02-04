@@ -73,6 +73,8 @@ export interface TopologyStoreOptions {
   timeoutMultiplier?: number
   /** Idle timeout before active services become idle. */
   idleTimeoutMs?: number
+  /** Timeout before removing idle edges with unresolved targets. */
+  unknownEdgeTimeoutMs?: number
   /** Activity aggregation flush interval. */
   activityFlushMs?: number
   /** Throttle interval for node update broadcasts. */
@@ -101,6 +103,7 @@ export class TopologyStore {
   private readonly heartbeatIntervalMs: number
   private readonly timeoutMultiplier: number
   private readonly idleTimeoutMs: number
+  private readonly unknownEdgeTimeoutMs: number
   private readonly activityFlushMs: number
   private readonly nodeUpdateThrottleMs: number
   private readonly now: () => number
@@ -111,6 +114,7 @@ export class TopologyStore {
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? 5000
     this.timeoutMultiplier = options.timeoutMultiplier ?? 3
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30000
+    this.unknownEdgeTimeoutMs = options.unknownEdgeTimeoutMs ?? this.idleTimeoutMs * 2
     this.activityFlushMs = options.activityFlushMs ?? 1000
     this.nodeUpdateThrottleMs = options.nodeUpdateThrottleMs ?? 5000
     this.now = options.now ?? (() => Date.now())
@@ -341,6 +345,7 @@ export class TopologyStore {
   public sweep(nowMs?: number): TopologyUpdate[] {
     const now = this.getNow(nowMs)
     const updates: TopologyUpdate[] = []
+    const knownTargets = this.collectServiceTargets()
 
     for (const [serviceId, record] of this.services.entries()) {
       const elapsed = now - record.lastHeartbeatMs
@@ -368,9 +373,19 @@ export class TopologyStore {
       }
     }
 
-    for (const edgeRecord of this.edges.values()) {
+    for (const [edgeKey, edgeRecord] of this.edges.entries()) {
+      const idleElapsed = now - edgeRecord.lastActivityMs
+      if (
+        this.unknownEdgeTimeoutMs > 0 &&
+        idleElapsed > this.unknownEdgeTimeoutMs &&
+        !knownTargets.has(edgeRecord.edge.targetService)
+      ) {
+        this.edges.delete(edgeKey)
+        updates.push(this.createEdgeUpdate(UpdateType.UPDATE_TYPE_EDGE_REMOVED, edgeRecord.edge))
+        continue
+      }
+
       if (edgeRecord.edge.state === ConnectionState.CONNECTION_STATE_ACTIVE) {
-        const idleElapsed = now - edgeRecord.lastActivityMs
         if (idleElapsed > this.idleTimeoutMs) {
           edgeRecord.edge.state = ConnectionState.CONNECTION_STATE_IDLE
           updates.push(this.createEdgeUpdate(UpdateType.UPDATE_TYPE_EDGE_UPDATED, edgeRecord.edge))
@@ -422,6 +437,16 @@ export class TopologyStore {
 
   private edgeKey(sourceServiceId: string, targetService: string): string {
     return `${sourceServiceId}::${targetService}`
+  }
+
+  private collectServiceTargets(): Set<string> {
+    const targets = new Set<string>()
+    for (const record of this.services.values()) {
+      for (const key of buildServiceKeys(record.node)) {
+        targets.add(key)
+      }
+    }
+    return targets
   }
 
   private getNow(nowMs?: number): number {

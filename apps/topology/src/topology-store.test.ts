@@ -96,4 +96,36 @@ describe('TopologyStore', () => {
     expect(edge.state).toBe(ConnectionState.CONNECTION_STATE_ACTIVE)
     expect(snapshot.nodes[0].state).toBe(ServiceState.SERVICE_STATE_ACTIVE)
   })
+
+  it('removes idle edges with unresolved targets after timeout', () => {
+    let now = 0
+    const store = new TopologyStore({
+      generateId: () => 'service-4',
+      now: () => now,
+      idleTimeoutMs: 1000,
+      unknownEdgeTimeoutMs: 1500,
+    })
+
+    const registerResult = store.registerService({
+      serviceName: 'calculator-client',
+      serviceType: ServiceType.SERVICE_TYPE_CLIENT,
+      language: ServiceLanguage.SERVICE_LANGUAGE_TYPESCRIPT,
+    })
+
+    const serviceId = registerResult.handle.serviceId
+    now = 10
+    store.recordActivity({
+      serviceId,
+      targetService: 'calculator.v1.CalculatorService::default',
+      type: ActivityType.ACTIVITY_TYPE_RESPONSE_RECEIVED,
+      latencyMs: 50,
+      batchSize: 1,
+      success: true,
+    })
+
+    now = 2000
+    const updates = store.sweep()
+    expect(updates.some((update) => update.type === UpdateType.UPDATE_TYPE_EDGE_REMOVED)).toBe(true)
+    expect(store.snapshot().edges).toHaveLength(0)
+  })
 })

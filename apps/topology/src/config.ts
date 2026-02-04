@@ -10,6 +10,8 @@ export interface TopologyServiceConfig {
   timeoutMultiplier: number
   /** Idle timeout before active services become idle. */
   idleTimeoutMs: number
+  /** Timeout before removing idle edges with unresolved targets. */
+  unknownEdgeTimeoutMs?: number
   /** Activity aggregation flush interval. */
   activityFlushMs: number
   /** Throttle interval for node update broadcasts. */
@@ -102,6 +104,9 @@ export const parseTopologyStackArgs = (argv: string[]): TopologyStackConfig => {
       i += 1
     } else if (flag === '--idle-timeout-ms') {
       service.idleTimeoutMs = parseNumberArg(requireValue(value, flag), flag)
+      i += 1
+    } else if (flag === '--unknown-edge-timeout-ms') {
+      service.unknownEdgeTimeoutMs = parseNumberArg(requireValue(value, flag), flag)
       i += 1
     } else if (flag === '--activity-flush-ms') {
       service.activityFlushMs = parseNumberArg(requireValue(value, flag), flag)
