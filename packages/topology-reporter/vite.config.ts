@@ -9,6 +9,8 @@ export default defineConfig({
       fileName: 'index',
     },
     sourcemap: true,
+    target: 'node18',
+    ssr: true,
     rollupOptions: {
       external: ['@grpc/grpc-js', '@modular-runtime/proto'],
     },
