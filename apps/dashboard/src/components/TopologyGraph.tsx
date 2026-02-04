@@ -92,8 +92,6 @@ const formatProgramName = (node: ServiceNode): string =>
 
 const buildEdgeId = (edge: ServiceEdge): string => `${edge.sourceServiceId}::${edge.targetService}`
 
-const formatRps = (value: number): number => Number(value.toFixed(1))
-
 /** Renders the graphical topology view using React Flow. */
 export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => {
   const stableElements = useRef<{ signature: string; elements: GraphElements } | null>(null)
@@ -147,10 +145,7 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
       .sort()
       .join('||')
     const edgeSignature = snapshot.edges
-      .map(
-        (edge) =>
-          `${edge.sourceServiceId}|${edge.targetService}|${edge.state}|${formatRps(edge.rps)}`
-      )
+      .map((edge) => `${edge.sourceServiceId}|${edge.targetService}|${edge.state}`)
       .sort()
       .join('||')
     return `${nodeSignature}@@${edgeSignature}`
@@ -201,17 +196,15 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
     const edges = snapshot.edges.map((edge) => {
       const targetId = serviceIdByKey.get(edge.targetService) ?? edge.targetService
       const isActive = edge.state === 2
-      const roundedRps = formatRps(edge.rps)
       return {
         id: buildEdgeId(edge),
         source: edge.sourceServiceId,
         target: targetId,
-        label: roundedRps > 0 ? `${roundedRps.toFixed(1)} rps` : undefined,
         animated: isActive,
         markerEnd: { type: MarkerType.ArrowClosed },
         style: {
           stroke: getConnectionStateColor(edge.state),
-          strokeWidth: Math.min(2 + Math.log10(roundedRps + 1), 6),
+          strokeWidth: isActive ? 3 : 2,
         },
       }
     })

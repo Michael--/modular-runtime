@@ -43,7 +43,7 @@ export const ConnectionsTable = ({ edges }: ConnectionsTableProps): JSX.Element 
                 {getConnectionStateLabel(edge.state)}
               </Badge>
             </Table.Td>
-            <Table.Td>{edge.rps.toFixed(2)}</Table.Td>
+            <Table.Td>{edge.rps.toFixed(1)}</Table.Td>
             <Table.Td>{edge.avgLatencyMs.toFixed(1)} ms</Table.Td>
             <Table.Td>{edge.totalRequests}</Table.Td>
           </Table.Tr>
