@@ -92,6 +92,13 @@ const formatProgramName = (node: ServiceNode): string =>
 
 const buildEdgeId = (edge: ServiceEdge): string => `${edge.sourceServiceId}::${edge.targetService}`
 
+const formatInstanceId = (node: ServiceNode): string | null => {
+  if (node.serviceId.startsWith('missing:')) {
+    return null
+  }
+  return node.serviceId.slice(0, 8)
+}
+
 /** Renders the graphical topology view using React Flow. */
 export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => {
   const stableElements = useRef<{ signature: string; elements: GraphElements } | null>(null)
@@ -177,8 +184,14 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
           <div className="graph-node">
             <div className="graph-node__title">{formatServiceTitle(node)}</div>
             <div className="graph-node__meta">
-              {formatProgramName(node)} · {formatServiceLanguage(node.language)} ·{' '}
-              {getServiceStateLabel(node.state)}
+              {[
+                formatProgramName(node),
+                formatInstanceId(node) ? `#${formatInstanceId(node)}` : null,
+                formatServiceLanguage(node.language),
+                getServiceStateLabel(node.state),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </div>
           </div>
         ),

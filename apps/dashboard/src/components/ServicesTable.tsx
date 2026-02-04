@@ -7,6 +7,13 @@ interface ServicesTableProps {
   nodes: ServiceNode[]
 }
 
+const formatInstanceId = (node: ServiceNode): string | null => {
+  if (node.serviceId.startsWith('missing:')) {
+    return null
+  }
+  return node.serviceId.slice(0, 8)
+}
+
 /** Renders the simple runtime services table view. */
 export const ServicesTable = ({ nodes }: ServicesTableProps): JSX.Element => {
   const sorted = [...nodes].sort((a, b) => a.serviceName.localeCompare(b.serviceName))
@@ -36,6 +43,11 @@ export const ServicesTable = ({ nodes }: ServicesTableProps): JSX.Element => {
             </Table.Td>
             <Table.Td>
               <Text size="sm">{node.metadata?.programName ?? node.serviceName}</Text>
+              {formatInstanceId(node) ? (
+                <Text size="xs" c="dimmed">
+                  id: {formatInstanceId(node)}
+                </Text>
+              ) : null}
             </Table.Td>
             <Table.Td>
               <Badge

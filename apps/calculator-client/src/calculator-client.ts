@@ -183,7 +183,7 @@ async function main() {
 
   setInterval(() => {
     someTestCalculations()
-  }, 2000)
+  }, 700)
 }
 
 main().catch(console.error)
