@@ -1,4 +1,5 @@
 #include <atomic>
+#include <algorithm>
 #include <csignal>
 #include <chrono>
 #include <cstdlib>
@@ -27,9 +28,14 @@ namespace
   constexpr int kReconnectDelaySeconds = 3;
   constexpr int kConnectTimeoutSeconds = 3;
   constexpr int kRpcTimeoutSeconds = 3;
+  constexpr int kTopologyRetryMinSeconds = 1;
+  constexpr int kTopologyRetryMaxSeconds = 15;
 
   std::atomic<bool> g_running{true};
   std::string g_service_id;
+  int g_topology_retry_seconds = kTopologyRetryMinSeconds;
+  std::chrono::steady_clock::time_point g_next_topology_register =
+      std::chrono::steady_clock::time_point::min();
 
   struct ServiceEndpoint
   {
@@ -153,10 +159,47 @@ namespace
     return true;
   }
 
+  void ResetTopologyRetry()
+  {
+    g_topology_retry_seconds = kTopologyRetryMinSeconds;
+    g_next_topology_register = std::chrono::steady_clock::now();
+  }
+
+  void ScheduleTopologyRetry()
+  {
+    const auto now = std::chrono::steady_clock::now();
+    g_next_topology_register = now + std::chrono::seconds(g_topology_retry_seconds);
+    g_topology_retry_seconds =
+        std::min(g_topology_retry_seconds * 2, kTopologyRetryMaxSeconds);
+  }
+
+  bool EnsureTopologyRegistered(const std::string &proxy_address)
+  {
+    if (!g_service_id.empty())
+    {
+      return true;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now < g_next_topology_register)
+    {
+      return false;
+    }
+
+    if (RegisterTopology(proxy_address))
+    {
+      ResetTopologyRetry();
+      return true;
+    }
+
+    ScheduleTopologyRetry();
+    return false;
+  }
+
   // Report activity to topology service
   void ReportActivity(const std::string &proxy_address, bool success, int latency_ms)
   {
-    if (g_service_id.empty())
+    if (!EnsureTopologyRegistered(proxy_address))
     {
       return;
     }
@@ -172,7 +215,12 @@ namespace
 
     std::string url = proxy_address + "/activity";
     std::string response;
-    HttpPost(url, json_body.str(), response);
+    if (!HttpPost(url, json_body.str(), response))
+    {
+      std::cerr << "Topology activity report failed; will re-register." << std::endl;
+      g_service_id.clear();
+      ScheduleTopologyRetry();
+    }
   }
 
   // Unregister from topology service
@@ -192,6 +240,7 @@ namespace
     {
       std::cout << "Unregistered from topology service" << std::endl;
     }
+    g_service_id.clear();
   }
 
   bool RoleMatches(const std::string &role)
@@ -333,11 +382,8 @@ int main(int argc, char *argv[])
   const std::string broker_address = BrokerAddress(argc, argv);
   const std::string topology_proxy = kDefaultTopologyProxyAddress;
 
-  // Register with topology service
-  if (!RegisterTopology(topology_proxy))
-  {
-    std::cerr << "Failed to register with topology service" << std::endl;
-  }
+  // Attempt initial topology registration (with retries in the main loop).
+  EnsureTopologyRegistered(topology_proxy);
 
   std::random_device rd;
   std::mt19937 rng(rd());
@@ -396,6 +442,8 @@ int main(int argc, char *argv[])
 
     while (g_running)
     {
+      EnsureTopologyRegistered(topology_proxy);
+
       const double a = value_dist(rng);
       const double b = value_dist(rng);
       const auto operation = RandomOperation(rng);
