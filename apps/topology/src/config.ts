@@ -12,6 +12,8 @@ export interface TopologyServiceConfig {
   idleTimeoutMs: number
   /** Timeout before removing idle edges with unresolved targets. */
   unknownEdgeTimeoutMs?: number
+  /** Window size in milliseconds for RPS averaging. */
+  rpsWindowMs?: number
   /** Activity aggregation flush interval. */
   activityFlushMs: number
   /** Throttle interval for node update broadcasts. */
@@ -79,6 +81,7 @@ export const parseTopologyStackArgs = (argv: string[]): TopologyStackConfig => {
     heartbeatIntervalMs: 5000,
     timeoutMultiplier: 3,
     idleTimeoutMs: 30000,
+    rpsWindowMs: 5000,
     activityFlushMs: 1000,
     nodeUpdateThrottleMs: 5000,
     sweepIntervalMs: 5000,
@@ -107,6 +110,9 @@ export const parseTopologyStackArgs = (argv: string[]): TopologyStackConfig => {
       i += 1
     } else if (flag === '--unknown-edge-timeout-ms') {
       service.unknownEdgeTimeoutMs = parseNumberArg(requireValue(value, flag), flag)
+      i += 1
+    } else if (flag === '--rps-window-ms') {
+      service.rpsWindowMs = parseNumberArg(requireValue(value, flag), flag)
       i += 1
     } else if (flag === '--activity-flush-ms') {
       service.activityFlushMs = parseNumberArg(requireValue(value, flag), flag)

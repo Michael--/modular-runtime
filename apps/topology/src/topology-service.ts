@@ -40,6 +40,7 @@ export const startTopologyService = async (
     timeoutMultiplier: config.timeoutMultiplier,
     idleTimeoutMs: config.idleTimeoutMs,
     unknownEdgeTimeoutMs: config.unknownEdgeTimeoutMs,
+    rpsWindowMs: config.rpsWindowMs,
     activityFlushMs: config.activityFlushMs,
     nodeUpdateThrottleMs: config.nodeUpdateThrottleMs,
   })

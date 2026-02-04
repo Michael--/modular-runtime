@@ -24,6 +24,11 @@ interface ServiceRecord {
   timeoutMultiplier: number
 }
 
+interface RateSample {
+  timeMs: number
+  totalCount: number
+}
+
 interface EdgeRecord {
   edge: ServiceEdge
   lastActivityMs: number
@@ -34,6 +39,7 @@ interface EdgeRecord {
   totalCount: number
   totalErrorCount: number
   avgLatencyMs: number
+  rateSamples: RateSample[]
 }
 
 const buildServiceKey = (node: ServiceNode): string => {
@@ -75,6 +81,8 @@ export interface TopologyStoreOptions {
   idleTimeoutMs?: number
   /** Timeout before removing idle edges with unresolved targets. */
   unknownEdgeTimeoutMs?: number
+  /** Window size in milliseconds for RPS averaging. */
+  rpsWindowMs?: number
   /** Activity aggregation flush interval. */
   activityFlushMs?: number
   /** Throttle interval for node update broadcasts. */
@@ -104,6 +112,7 @@ export class TopologyStore {
   private readonly timeoutMultiplier: number
   private readonly idleTimeoutMs: number
   private readonly unknownEdgeTimeoutMs: number
+  private readonly rpsWindowMs: number
   private readonly activityFlushMs: number
   private readonly nodeUpdateThrottleMs: number
   private readonly now: () => number
@@ -115,6 +124,7 @@ export class TopologyStore {
     this.timeoutMultiplier = options.timeoutMultiplier ?? 3
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30000
     this.unknownEdgeTimeoutMs = options.unknownEdgeTimeoutMs ?? this.idleTimeoutMs * 2
+    this.rpsWindowMs = options.rpsWindowMs ?? 5000
     this.activityFlushMs = options.activityFlushMs ?? 1000
     this.nodeUpdateThrottleMs = options.nodeUpdateThrottleMs ?? 5000
     this.now = options.now ?? (() => Date.now())
@@ -270,6 +280,7 @@ export class TopologyStore {
         totalCount: 0,
         totalErrorCount: 0,
         avgLatencyMs: 0,
+        rateSamples: [{ timeMs: now, totalCount: 0 }],
       }
 
       this.edges.set(edgeKey, created)
@@ -324,7 +335,7 @@ export class TopologyStore {
       edgeRecord.edge.totalRequests = String(edgeRecord.totalCount)
       edgeRecord.edge.totalErrors = String(edgeRecord.totalErrorCount)
       edgeRecord.edge.avgLatencyMs = edgeRecord.avgLatencyMs
-      edgeRecord.edge.rps = edgeRecord.pendingCount / elapsedSeconds
+      this.updateEdgeRps(edgeRecord, now, elapsedSeconds)
 
       edgeRecord.pendingCount = 0
       edgeRecord.pendingErrorCount = 0
@@ -437,6 +448,30 @@ export class TopologyStore {
 
   private edgeKey(sourceServiceId: string, targetService: string): string {
     return `${sourceServiceId}::${targetService}`
+  }
+
+  private updateEdgeRps(edgeRecord: EdgeRecord, now: number, elapsedSeconds: number): void {
+    if (this.rpsWindowMs <= 0) {
+      edgeRecord.edge.rps = edgeRecord.pendingCount / elapsedSeconds
+      return
+    }
+
+    edgeRecord.rateSamples.push({ timeMs: now, totalCount: edgeRecord.totalCount })
+    const cutoff = now - this.rpsWindowMs
+    while (edgeRecord.rateSamples.length > 2 && edgeRecord.rateSamples[0].timeMs < cutoff) {
+      edgeRecord.rateSamples.shift()
+    }
+
+    if (edgeRecord.rateSamples.length < 2) {
+      edgeRecord.edge.rps = 0
+      return
+    }
+
+    const oldest = edgeRecord.rateSamples[0]
+    const latest = edgeRecord.rateSamples[edgeRecord.rateSamples.length - 1]
+    const elapsedMs = Math.max(1, latest.timeMs - oldest.timeMs)
+    const delta = latest.totalCount - oldest.totalCount
+    edgeRecord.edge.rps = delta / (elapsedMs / 1000)
   }
 
   private collectServiceTargets(): Set<string> {
