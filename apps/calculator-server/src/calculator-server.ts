@@ -133,13 +133,7 @@ async function startTopologyReporter() {
     enableActivity: true,
   })
 
-  try {
-    await topologyReporter.register()
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`Topology reporter failed to start: ${message}`)
-    topologyReporter = null
-  }
+  topologyReporter.start()
 }
 
 // Centralized shutdown logic

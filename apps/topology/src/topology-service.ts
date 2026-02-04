@@ -171,9 +171,28 @@ export const startTopologyService = async (
   const stop = async (): Promise<void> => {
     clearInterval(sweepTimer)
     clearInterval(flushTimer)
+    const shutdownTimeoutMs = 5000
+
     await new Promise<void>((resolve, reject) => {
+      let settled = false
+      const timeout = setTimeout(() => {
+        if (settled) {
+          return
+        }
+        settled = true
+        console.warn('Topology service shutdown timed out; forcing shutdown.')
+        server.forceShutdown()
+        resolve()
+      }, shutdownTimeoutMs)
+
       server.tryShutdown((error) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        clearTimeout(timeout)
         if (error) {
+          server.forceShutdown()
           reject(error)
           return
         }
