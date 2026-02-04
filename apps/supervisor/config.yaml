@@ -46,6 +46,22 @@ services:
     restartDelay: 3000
     restartOnUnexpectedExit: true
     logColor: cyan
+
+  - name: calculator-server-rust
+    command: apps/calculator-server-rust/target/debug/calculator-server-rust
+    args:
+      - --address
+      - 127.0.0.1:5555
+      - --broker-address
+      - 127.0.0.1:50051
+    cwd: ../..
+    env: {}
+    restart: always
+    maxRestarts: 5
+    restartDelay: 3000
+    restartOnUnexpectedExit: true
+    logColor: yellow
+
   - name: calculator-client
     command: node
     args:
@@ -60,7 +76,7 @@ services:
     restartOnUnexpectedExit: true
     logColor: green
   - name: calculator-client-rust
-    command: apps/calculator-client-rust/target/release/calculator-client-rust
+    command: apps/calculator-client-rust/target/debug/calculator-client-rust
     args:
       - --broker-address
       - 127.0.0.1:50051

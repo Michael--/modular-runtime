@@ -1,5 +1,5 @@
 [package]
-name = "calculator-client-rust"
+name = "calculator-server-rust"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -8,7 +8,6 @@ publish = false
 clap = { version = "4.5.4", features = ["derive"] }
 hostname = "0.4.0"
 prost = "0.13.3"
-rand = "0.8.5"
 tokio = { version = "1.37.0", features = [
   "macros",
   "rt-multi-thread",
