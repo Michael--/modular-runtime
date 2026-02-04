@@ -68,6 +68,36 @@ export const startTopologyProxy = async (
     })
   }
 
+  const handleStreamData = (response: WatchTopologyResponse): void => {
+    if (isStopping) {
+      return
+    }
+    if (!response.update) {
+      return
+    }
+    broadcast(response.update)
+  }
+
+  const handleStreamError = async (error: Error): Promise<void> => {
+    if (isStopping) {
+      return
+    }
+    console.error(`Topology watch error: ${error.message}`)
+    watchStream = null
+    await setTimeout(1000)
+    startWatchStream()
+  }
+
+  const handleStreamEnd = async (): Promise<void> => {
+    if (isStopping) {
+      return
+    }
+    console.warn('Topology watch ended; reconnecting.')
+    watchStream = null
+    await setTimeout(1000)
+    startWatchStream()
+  }
+
   const startWatchStream = (): void => {
     if (watchStream || isStopping) {
       return
@@ -76,30 +106,9 @@ export const startTopologyProxy = async (
       query: { serviceNames: [], includeIdle: true, includeStale: true },
     }
     watchStream = client.watchTopology(request)
-    watchStream.on('data', (response) => {
-      if (!response.update) {
-        return
-      }
-      broadcast(response.update)
-    })
-    watchStream.on('error', async (error) => {
-      if (isStopping) {
-        return
-      }
-      console.error(`Topology watch error: ${error.message}`)
-      watchStream = null
-      await setTimeout(1000)
-      startWatchStream()
-    })
-    watchStream.on('end', async () => {
-      if (isStopping) {
-        return
-      }
-      console.warn('Topology watch ended; reconnecting.')
-      watchStream = null
-      await setTimeout(1000)
-      startWatchStream()
-    })
+    watchStream.on('data', handleStreamData)
+    watchStream.on('error', handleStreamError)
+    watchStream.on('end', handleStreamEnd)
   }
 
   const handleSse = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -155,7 +164,8 @@ export const startTopologyProxy = async (
   const stop = async (): Promise<void> => {
     isStopping = true
     if (watchStream) {
-      watchStream.removeAllListeners()
+      watchStream.off('data', handleStreamData)
+      watchStream.off('end', handleStreamEnd)
       watchStream.cancel()
       watchStream = null
     }
