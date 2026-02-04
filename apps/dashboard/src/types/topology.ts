@@ -16,10 +16,22 @@ export interface ServiceNode {
   version?: string
   address?: string
   host?: string
+  metadata?: ServiceMetadata
   state: ServiceState
   lastHeartbeatMs: string
   lastActivityMs: string
   health: number
+}
+
+/** Optional metadata attached to a service. */
+export interface ServiceMetadata {
+  region?: string
+  environment?: string
+  team?: string
+  versionHash?: string
+  serviceInterface?: string
+  serviceRole?: string
+  programName?: string
 }
 
 /** Topology edge describing a connection between services. */

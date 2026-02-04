@@ -31,6 +31,9 @@ interface RegisterRequest {
   address?: string
   host?: string
   enableActivity?: boolean
+  serviceInterface?: string
+  serviceRole?: string
+  programName?: string
 }
 
 /**
@@ -165,6 +168,11 @@ export const startTopologyReporterProxy = async (
         address: body.address,
         host: body.host,
         enableActivity: body.enableActivity ?? true,
+        metadata: {
+          serviceInterface: body.serviceInterface,
+          serviceRole: body.serviceRole,
+          programName: body.programName,
+        },
       }
 
       const reporter = new TopologyReporter(options)

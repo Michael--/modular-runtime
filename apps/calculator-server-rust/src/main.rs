@@ -108,6 +108,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     config.version = Some(env!("CARGO_PKG_VERSION").to_string());
     config.address = Some(args.address.clone());
     config.host = host;
+    config.service_interface = Some(SERVICE_NAME.to_string());
+    config.service_role = Some(DEFAULT_ROLE.to_string());
+    config.program_name = Some("calculator-server-rust".to_string());
     let topology_client = TopologyProxyClient::new(config);
     Some(tokio::spawn(run_topology_heartbeat(
       topology_client,

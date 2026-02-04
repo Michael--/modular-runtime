@@ -14,6 +14,8 @@ import {
   ServiceType,
 } from '../../../packages/proto/generated/ts/runtime/v1/topology'
 
+const CALCULATOR_SERVICE_KEY = 'calculator.v1.CalculatorService::default'
+
 const parseArgs = () => {
   const args = process.argv.slice(2)
   let brokerAddress = '127.0.0.1:50051'
@@ -58,7 +60,7 @@ async function someTestCalculations() {
       calculatorClient.calculate(request, (error, response) => {
         const latencyMs = Date.now() - startedAt
         topologyReporter?.reportActivity({
-          targetService: 'calculator-server',
+          targetService: CALCULATOR_SERVICE_KEY,
           type: ActivityType.ACTIVITY_TYPE_RESPONSE_RECEIVED,
           latencyMs,
           method: 'CalculatorService/Calculate',
@@ -114,6 +116,9 @@ async function startTopologyReporter() {
     language: ServiceLanguage.SERVICE_LANGUAGE_TYPESCRIPT,
     host: hostname(),
     enableActivity: true,
+    metadata: {
+      programName: 'calculator-client',
+    },
   })
 
   topologyReporter.start()

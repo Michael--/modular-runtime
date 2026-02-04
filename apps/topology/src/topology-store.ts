@@ -36,6 +36,15 @@ interface EdgeRecord {
   avgLatencyMs: number
 }
 
+const buildServiceKey = (node: ServiceNode): string => {
+  const serviceInterface = node.metadata?.serviceInterface?.trim()
+  const serviceRole = node.metadata?.serviceRole?.trim()
+  if (serviceInterface) {
+    return serviceRole ? `${serviceInterface}::${serviceRole}` : serviceInterface
+  }
+  return node.serviceName
+}
+
 /**
  * Configuration options for the topology store.
  */
@@ -373,6 +382,7 @@ export class TopologyStore {
     if (!record) {
       return []
     }
+    const serviceKey = buildServiceKey(record.node)
 
     const updates: TopologyUpdate[] = []
     this.services.delete(serviceId)
@@ -382,7 +392,8 @@ export class TopologyStore {
     for (const [edgeKey, edgeRecord] of this.edges.entries()) {
       if (
         edgeRecord.edge.sourceServiceId === serviceId ||
-        edgeRecord.edge.targetService === record.node.serviceName
+        edgeRecord.edge.targetService === record.node.serviceName ||
+        edgeRecord.edge.targetService === serviceKey
       ) {
         this.edges.delete(edgeKey)
         updates.push(this.createEdgeUpdate(UpdateType.UPDATE_TYPE_EDGE_REMOVED, edgeRecord.edge))

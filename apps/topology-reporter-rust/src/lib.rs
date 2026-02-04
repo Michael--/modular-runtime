@@ -65,6 +65,9 @@ pub struct TopologyProxyConfig {
   pub service_name: String,
   pub service_type: ServiceType,
   pub language: ServiceLanguage,
+  pub service_interface: Option<String>,
+  pub service_role: Option<String>,
+  pub program_name: Option<String>,
   pub version: Option<String>,
   pub address: Option<String>,
   pub host: Option<String>,
@@ -85,6 +88,9 @@ impl TopologyProxyConfig {
       service_name,
       service_type,
       language,
+      service_interface: None,
+      service_role: None,
+      program_name: None,
       version: None,
       address: None,
       host: None,
@@ -137,6 +143,12 @@ struct RegisterRequest {
   #[serde(rename = "serviceType")]
   service_type: String,
   language: String,
+  #[serde(rename = "serviceInterface")]
+  service_interface: Option<String>,
+  #[serde(rename = "serviceRole")]
+  service_role: Option<String>,
+  #[serde(rename = "programName")]
+  program_name: Option<String>,
   version: Option<String>,
   address: Option<String>,
   host: Option<String>,
@@ -308,6 +320,9 @@ impl TopologyProxyClient {
       service_name: self.config.service_name.clone(),
       service_type: self.config.service_type.as_str().to_string(),
       language: self.config.language.as_str().to_string(),
+      service_interface: self.config.service_interface.clone(),
+      service_role: self.config.service_role.clone(),
+      program_name: self.config.program_name.clone(),
       version: self.config.version.clone(),
       address: self.config.address.clone(),
       host: self.config.host.clone(),

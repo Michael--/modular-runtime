@@ -25,6 +25,7 @@ namespace
   constexpr const char *kDefaultTopologyProxyAddress = "http://127.0.0.1:50055";
   constexpr const char *kServiceName = "calculator.v1.CalculatorService";
   constexpr const char *kDefaultRole = "default";
+  constexpr const char *kCalculatorServiceKey = "calculator.v1.CalculatorService::default";
   constexpr int kReconnectDelaySeconds = 3;
   constexpr int kConnectTimeoutSeconds = 3;
   constexpr int kRpcTimeoutSeconds = 3;
@@ -207,7 +208,7 @@ namespace
     std::ostringstream json_body;
     json_body << "{"
               << "\"serviceId\":\"" << g_service_id << "\","
-              << "\"targetService\":\"calculator-server\","
+              << "\"targetService\":\"" << kCalculatorServiceKey << "\","
               << "\"type\":\"ACTIVITY_TYPE_REQUEST_SENT\","
               << "\"latencyMs\":" << latency_ms << ","
               << "\"success\":" << (success ? "true" : "false")

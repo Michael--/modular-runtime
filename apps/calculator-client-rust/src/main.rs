@@ -21,6 +21,7 @@ const DEFAULT_BROKER_ADDRESS: &str = "127.0.0.1:50051";
 const DEFAULT_TOPOLOGY_PROXY_ADDRESS: &str = "http://127.0.0.1:50055";
 const SERVICE_NAME: &str = "calculator.v1.CalculatorService";
 const DEFAULT_ROLE: &str = "default";
+const CALCULATOR_SERVICE_KEY: &str = "calculator.v1.CalculatorService::default";
 
 struct RetryState {
   next_retry_at: Instant,
@@ -100,6 +101,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
     config.version = Some(env!("CARGO_PKG_VERSION").to_string());
     config.host = host;
+    config.program_name = Some("calculator-client-rust".to_string());
     Some(TopologyProxyClient::new(config))
   } else {
     None
@@ -180,7 +182,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             if let Some(topology) = topology.as_mut() {
               let report = ActivityReport {
-                target_service: "calculator-server".to_string(),
+                target_service: CALCULATOR_SERVICE_KEY.to_string(),
                 activity_type: ActivityType::RequestSent,
                 timestamp_ms: None,
                 latency_ms: Some(latency_ms),
@@ -201,7 +203,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             if let Some(topology) = topology.as_mut() {
               let report = ActivityReport {
-                target_service: "calculator-server".to_string(),
+                target_service: CALCULATOR_SERVICE_KEY.to_string(),
                 activity_type: ActivityType::Error,
                 timestamp_ms: None,
                 latency_ms: Some(latency_ms),

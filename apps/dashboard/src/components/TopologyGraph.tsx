@@ -10,6 +10,7 @@ import {
 
 const GRID_GAP_X = 240
 const GRID_GAP_Y = 160
+const DEFAULT_ROLE_DELIMITER = '::'
 
 interface TopologyGraphProps {
   snapshot: TopologySnapshot
@@ -35,6 +36,29 @@ const createMissingNode = (serviceId: string, serviceName: string): ServiceNode 
   health: 0,
 })
 
+const getServiceKey = (node: ServiceNode): string => {
+  const serviceInterface = node.metadata?.serviceInterface?.trim()
+  const serviceRole = node.metadata?.serviceRole?.trim()
+  if (serviceInterface) {
+    return serviceRole
+      ? `${serviceInterface}${DEFAULT_ROLE_DELIMITER}${serviceRole}`
+      : serviceInterface
+  }
+  return node.serviceName
+}
+
+const formatServiceTitle = (node: ServiceNode): string => {
+  const serviceInterface = node.metadata?.serviceInterface?.trim()
+  const serviceRole = node.metadata?.serviceRole?.trim()
+  if (!serviceInterface) {
+    return node.serviceName
+  }
+  return serviceRole ? `${serviceInterface} (${serviceRole})` : serviceInterface
+}
+
+const formatProgramName = (node: ServiceNode): string =>
+  node.metadata?.programName?.trim() || node.serviceName
+
 const buildEdgeId = (edge: ServiceEdge): string => `${edge.sourceServiceId}::${edge.targetService}`
 
 const formatRps = (value: number): number => Number(value.toFixed(1))
@@ -42,23 +66,25 @@ const formatRps = (value: number): number => Number(value.toFixed(1))
 /** Renders the graphical topology view using React Flow. */
 export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => {
   const stableElements = useRef<{ signature: string; elements: GraphElements } | null>(null)
-  const { nodes: enrichedNodes, serviceIdByName } = useMemo(() => {
+  const { nodes: enrichedNodes, serviceIdByKey } = useMemo(() => {
     const existingNodes = [...snapshot.nodes]
-    const serviceIdByName = new Map<string, string>(
-      existingNodes.map((node) => [node.serviceName, node.serviceId])
-    )
+    const serviceIdByKey = new Map<string, string>()
+    for (const node of existingNodes) {
+      serviceIdByKey.set(node.serviceName, node.serviceId)
+      serviceIdByKey.set(getServiceKey(node), node.serviceId)
+    }
     const serviceIds = new Set(existingNodes.map((node) => node.serviceId))
     const missingByName = new Map<string, ServiceNode>()
     const missingById = new Map<string, ServiceNode>()
 
     for (const edge of snapshot.edges) {
-      if (!serviceIdByName.has(edge.targetService)) {
+      if (!serviceIdByKey.has(edge.targetService)) {
         const placeholderId = `missing:${edge.targetService}`
         if (!missingByName.has(edge.targetService)) {
           const missingNode = createMissingNode(placeholderId, edge.targetService)
           missingByName.set(edge.targetService, missingNode)
         }
-        serviceIdByName.set(edge.targetService, placeholderId)
+        serviceIdByKey.set(edge.targetService, placeholderId)
       }
 
       if (!serviceIds.has(edge.sourceServiceId) && !missingById.has(edge.sourceServiceId)) {
@@ -71,7 +97,7 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
 
     return {
       nodes: [...existingNodes, ...missingByName.values(), ...missingById.values()],
-      serviceIdByName,
+      serviceIdByKey,
     }
   }, [snapshot.edges, snapshot.nodes])
 
@@ -114,9 +140,10 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
       data: {
         label: (
           <div className="graph-node">
-            <div className="graph-node__title">{node.serviceName}</div>
+            <div className="graph-node__title">{formatServiceTitle(node)}</div>
             <div className="graph-node__meta">
-              {formatServiceLanguage(node.language)} · {getServiceStateLabel(node.state)}
+              {formatProgramName(node)} · {formatServiceLanguage(node.language)} ·{' '}
+              {getServiceStateLabel(node.state)}
             </div>
           </div>
         ),
@@ -132,7 +159,7 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
     }))
 
     const edges = snapshot.edges.map((edge) => {
-      const targetId = serviceIdByName.get(edge.targetService) ?? edge.targetService
+      const targetId = serviceIdByKey.get(edge.targetService) ?? edge.targetService
       const isActive = edge.state === 2
       const roundedRps = formatRps(edge.rps)
       return {
@@ -152,7 +179,7 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
     const next = { nodes, edges }
     stableElements.current = { signature: visualSignature, elements: next }
     return next
-  }, [enrichedNodes, positions, serviceIdByName, snapshot.edges, visualSignature])
+  }, [enrichedNodes, positions, serviceIdByKey, snapshot.edges, visualSignature])
 
   return (
     <div className="graph-shell">

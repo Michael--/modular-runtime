@@ -18,6 +18,9 @@ import {
   ServiceType,
 } from '../../../packages/proto/generated/ts/runtime/v1/topology'
 
+const CALCULATOR_SERVICE_INTERFACE = 'calculator.v1.CalculatorService'
+const CALCULATOR_SERVICE_ROLE = 'default'
+
 const parseArgs = () => {
   const args = process.argv.slice(2)
   let address = '127.0.0.1:5555'
@@ -131,6 +134,11 @@ async function startTopologyReporter() {
     host: hostname(),
     address: `${url}:${port}`,
     enableActivity: true,
+    metadata: {
+      serviceInterface: CALCULATOR_SERVICE_INTERFACE,
+      serviceRole: CALCULATOR_SERVICE_ROLE,
+      programName: 'calculator-server',
+    },
   })
 
   topologyReporter.start()

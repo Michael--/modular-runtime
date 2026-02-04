@@ -15,7 +15,8 @@ export const ServicesTable = ({ nodes }: ServicesTableProps): JSX.Element => {
     <Table withTableBorder highlightOnHover striped>
       <Table.Thead>
         <Table.Tr>
-          <Table.Th>Name</Table.Th>
+          <Table.Th>Service</Table.Th>
+          <Table.Th>Program</Table.Th>
           <Table.Th>State</Table.Th>
           <Table.Th>Last Heartbeat</Table.Th>
           <Table.Th>Last Activity</Table.Th>
@@ -25,7 +26,17 @@ export const ServicesTable = ({ nodes }: ServicesTableProps): JSX.Element => {
       <Table.Tbody>
         {sorted.map((node) => (
           <Table.Tr key={node.serviceId}>
-            <Table.Td>{node.serviceName}</Table.Td>
+            <Table.Td>
+              <Text fw={600}>{node.metadata?.serviceInterface ?? node.serviceName}</Text>
+              {node.metadata?.serviceRole ? (
+                <Text size="xs" c="dimmed">
+                  role: {node.metadata.serviceRole}
+                </Text>
+              ) : null}
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{node.metadata?.programName ?? node.serviceName}</Text>
+            </Table.Td>
             <Table.Td>
               <Badge
                 variant="filled"
