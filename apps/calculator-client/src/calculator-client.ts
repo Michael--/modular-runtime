@@ -14,7 +14,14 @@ import {
   ServiceType,
 } from '../../../packages/proto/generated/ts/runtime/v1/topology'
 
-const CALCULATOR_SERVICE_KEY = 'calculator.v1.CalculatorService::default'
+const CALCULATOR_SERVICE_INTERFACE = 'calculator.v1.CalculatorService'
+const CALCULATOR_SERVICE_ROLE = 'default'
+const buildServiceKey = (address?: string): string => {
+  if (address) {
+    return `${CALCULATOR_SERVICE_INTERFACE}::${CALCULATOR_SERVICE_ROLE}@${address}`
+  }
+  return `${CALCULATOR_SERVICE_INTERFACE}::${CALCULATOR_SERVICE_ROLE}`
+}
 
 const parseArgs = () => {
   const args = process.argv.slice(2)
@@ -42,6 +49,7 @@ const { brokerUrl, brokerPort, topologyAddress, topologyEnabled } = parseArgs()
 let brokerManager: BrokerClientManager | null = null
 let calculatorClient: CalculatorServiceClient | null = null
 let topologyReporter: TopologyReporter | null = null
+let targetServiceKey = buildServiceKey()
 
 async function someTestCalculations() {
   const calculator = async (
@@ -60,7 +68,7 @@ async function someTestCalculations() {
       calculatorClient.calculate(request, (error, response) => {
         const latencyMs = Date.now() - startedAt
         topologyReporter?.reportActivity({
-          targetService: CALCULATOR_SERVICE_KEY,
+          targetService: targetServiceKey,
           type: ActivityType.ACTIVITY_TYPE_RESPONSE_RECEIVED,
           latencyMs,
           method: 'CalculatorService/Calculate',
@@ -145,6 +153,7 @@ async function prepareClient() {
   if (s != null) {
     const address = `${s.url}:${s.port}`
     calculatorClient = new CalculatorServiceClient(address, credentials.createInsecure())
+    targetServiceKey = buildServiceKey(address)
   }
 }
 
@@ -163,6 +172,7 @@ function brokerManagerInstance() {
   brokerManager.onDisconnected = () => {
     console.log('Broker disconnected')
     calculatorClient = null
+    targetServiceKey = buildServiceKey()
   }
 }
 

@@ -47,6 +47,37 @@ const getServiceKey = (node: ServiceNode): string => {
   return node.serviceName
 }
 
+const getServiceKeyVariants = (node: ServiceNode): string[] => {
+  const keys = new Set<string>()
+  keys.add(node.serviceName)
+
+  const serviceKey = getServiceKey(node)
+  keys.add(serviceKey)
+
+  const address = node.address?.trim()
+  if (address) {
+    keys.add(address)
+    keys.add(`${serviceKey}@${address}`)
+  }
+
+  return Array.from(keys)
+}
+
+const parseTargetKey = (
+  value: string
+): { serviceInterface?: string; serviceRole?: string; address?: string } => {
+  const [servicePart, addressPart] = value.split('@')
+  if (!servicePart) {
+    return {}
+  }
+  const [serviceInterface, serviceRole] = servicePart.split(DEFAULT_ROLE_DELIMITER)
+  return {
+    serviceInterface: serviceInterface || undefined,
+    serviceRole: serviceRole || undefined,
+    address: addressPart || undefined,
+  }
+}
+
 const formatServiceTitle = (node: ServiceNode): string => {
   const serviceInterface = node.metadata?.serviceInterface?.trim()
   const serviceRole = node.metadata?.serviceRole?.trim()
@@ -57,7 +88,7 @@ const formatServiceTitle = (node: ServiceNode): string => {
 }
 
 const formatProgramName = (node: ServiceNode): string =>
-  node.metadata?.programName?.trim() || node.serviceName
+  node.metadata?.programName?.trim() || node.address?.trim() || node.serviceName
 
 const buildEdgeId = (edge: ServiceEdge): string => `${edge.sourceServiceId}::${edge.targetService}`
 
@@ -70,8 +101,9 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
     const existingNodes = [...snapshot.nodes]
     const serviceIdByKey = new Map<string, string>()
     for (const node of existingNodes) {
-      serviceIdByKey.set(node.serviceName, node.serviceId)
-      serviceIdByKey.set(getServiceKey(node), node.serviceId)
+      for (const key of getServiceKeyVariants(node)) {
+        serviceIdByKey.set(key, node.serviceId)
+      }
     }
     const serviceIds = new Set(existingNodes.map((node) => node.serviceId))
     const missingByName = new Map<string, ServiceNode>()
@@ -82,6 +114,14 @@ export const TopologyGraph = ({ snapshot }: TopologyGraphProps): JSX.Element => 
         const placeholderId = `missing:${edge.targetService}`
         if (!missingByName.has(edge.targetService)) {
           const missingNode = createMissingNode(placeholderId, edge.targetService)
+          const parsed = parseTargetKey(edge.targetService)
+          if (parsed.serviceInterface || parsed.serviceRole || parsed.address) {
+            missingNode.metadata = {
+              serviceInterface: parsed.serviceInterface,
+              serviceRole: parsed.serviceRole,
+              programName: parsed.address,
+            }
+          }
           missingByName.set(edge.targetService, missingNode)
         }
         serviceIdByKey.set(edge.targetService, placeholderId)

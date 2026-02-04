@@ -25,7 +25,7 @@ namespace
   constexpr const char *kDefaultTopologyProxyAddress = "http://127.0.0.1:50055";
   constexpr const char *kServiceName = "calculator.v1.CalculatorService";
   constexpr const char *kDefaultRole = "default";
-  constexpr const char *kCalculatorServiceKey = "calculator.v1.CalculatorService::default";
+  constexpr const char *kCalculatorServiceKeyPrefix = "calculator.v1.CalculatorService::default";
   constexpr int kReconnectDelaySeconds = 3;
   constexpr int kConnectTimeoutSeconds = 3;
   constexpr int kRpcTimeoutSeconds = 3;
@@ -198,7 +198,11 @@ namespace
   }
 
   // Report activity to topology service
-  void ReportActivity(const std::string &proxy_address, bool success, int latency_ms)
+  void ReportActivity(
+      const std::string &proxy_address,
+      const std::string &target_service_key,
+      bool success,
+      int latency_ms)
   {
     if (!EnsureTopologyRegistered(proxy_address))
     {
@@ -208,7 +212,7 @@ namespace
     std::ostringstream json_body;
     json_body << "{"
               << "\"serviceId\":\"" << g_service_id << "\","
-              << "\"targetService\":\"" << kCalculatorServiceKey << "\","
+              << "\"targetService\":\"" << target_service_key << "\","
               << "\"type\":\"ACTIVITY_TYPE_REQUEST_SENT\","
               << "\"latencyMs\":" << latency_ms << ","
               << "\"success\":" << (success ? "true" : "false")
@@ -464,17 +468,20 @@ int main(int argc, char *argv[])
       auto end = std::chrono::steady_clock::now();
       int latency_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
+      const std::string target_service_key =
+          std::string(kCalculatorServiceKeyPrefix) + "@" + calculator_address;
+
       if (!status.ok())
       {
         std::cerr << "Calculation failed: " << status.error_message() << std::endl;
-        ReportActivity(topology_proxy, false, latency_ms);
+        ReportActivity(topology_proxy, target_service_key, false, latency_ms);
         break;
       }
 
       std::cout << "calculate(" << a << " " << OperationSymbol(operation) << " " << b
                 << ") => " << response.result() << std::endl;
 
-      ReportActivity(topology_proxy, true, latency_ms);
+      ReportActivity(topology_proxy, target_service_key, true, latency_ms);
 
       std::this_thread::sleep_for(std::chrono::seconds(2));
     }

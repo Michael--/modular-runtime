@@ -21,7 +21,7 @@ const DEFAULT_BROKER_ADDRESS: &str = "127.0.0.1:50051";
 const DEFAULT_TOPOLOGY_PROXY_ADDRESS: &str = "http://127.0.0.1:50055";
 const SERVICE_NAME: &str = "calculator.v1.CalculatorService";
 const DEFAULT_ROLE: &str = "default";
-const CALCULATOR_SERVICE_KEY: &str = "calculator.v1.CalculatorService::default";
+const CALCULATOR_SERVICE_KEY_PREFIX: &str = "calculator.v1.CalculatorService::default";
 
 struct RetryState {
   next_retry_at: Instant,
@@ -55,6 +55,7 @@ impl RetryState {
 struct CalculatorConnection {
   client: CalculatorServiceClient<Channel>,
   address: String,
+  target_service_key: String,
 }
 
 #[derive(Parser)]
@@ -85,6 +86,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
   let broker_url = normalize_broker_url(&broker_address);
   let mut calculator: Option<CalculatorServiceClient<Channel>> = None;
+  let mut target_service_key: Option<String> = None;
   let mut broker_retry = RetryState::new();
 
   let topology_proxy =
@@ -152,6 +154,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Ok(connection) => {
               println!("Connecting to calculator service at {}", connection.address);
               calculator = Some(connection.client);
+              target_service_key = Some(connection.target_service_key);
               broker_retry.reset();
             }
             Err(error) => {
@@ -181,8 +184,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             println!("calculate({:.6} {} {:.6}) => {:.6}", a, operation_symbol(op), b, result);
 
             if let Some(topology) = topology.as_mut() {
+              let Some(target_service) = target_service_key.as_ref() else {
+                continue;
+              };
               let report = ActivityReport {
-                target_service: CALCULATOR_SERVICE_KEY.to_string(),
+                target_service: target_service.to_string(),
                 activity_type: ActivityType::RequestSent,
                 timestamp_ms: None,
                 latency_ms: Some(latency_ms),
@@ -199,11 +205,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let latency_ms = started_at.elapsed().as_millis() as i32;
             eprintln!("Calculation failed: {}", error.message());
             calculator = None;
+            target_service_key = None;
             broker_retry.schedule_retry();
 
             if let Some(topology) = topology.as_mut() {
+              let Some(target_service) = target_service_key.as_ref() else {
+                continue;
+              };
               let report = ActivityReport {
-                target_service: CALCULATOR_SERVICE_KEY.to_string(),
+                target_service: target_service.to_string(),
                 activity_type: ActivityType::Error,
                 timestamp_ms: None,
                 latency_ms: Some(latency_ms),
@@ -230,9 +240,14 @@ async fn connect_calculator(
   let mut broker = BrokerServiceClient::connect(broker_url.to_string()).await?;
   let calculator_url = resolve_calculator_url(&mut broker).await?;
   let client = CalculatorServiceClient::connect(calculator_url.clone()).await?;
+  let normalized = calculator_url
+    .trim_start_matches("http://")
+    .trim_start_matches("https://");
+  let target_service_key = format!("{CALCULATOR_SERVICE_KEY_PREFIX}@{normalized}");
   Ok(CalculatorConnection {
     client,
     address: calculator_url,
+    target_service_key,
   })
 }
 

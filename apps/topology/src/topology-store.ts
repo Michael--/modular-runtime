@@ -45,6 +45,24 @@ const buildServiceKey = (node: ServiceNode): string => {
   return node.serviceName
 }
 
+const buildServiceKeys = (node: ServiceNode): Set<string> => {
+  const keys = new Set<string>()
+  keys.add(node.serviceName)
+
+  const serviceKey = buildServiceKey(node)
+  keys.add(serviceKey)
+
+  const address = node.address?.trim()
+  if (address) {
+    keys.add(address)
+    if (serviceKey) {
+      keys.add(`${serviceKey}@${address}`)
+    }
+  }
+
+  return keys
+}
+
 /**
  * Configuration options for the topology store.
  */
@@ -382,7 +400,7 @@ export class TopologyStore {
     if (!record) {
       return []
     }
-    const serviceKey = buildServiceKey(record.node)
+    const serviceKeys = buildServiceKeys(record.node)
 
     const updates: TopologyUpdate[] = []
     this.services.delete(serviceId)
@@ -392,8 +410,7 @@ export class TopologyStore {
     for (const [edgeKey, edgeRecord] of this.edges.entries()) {
       if (
         edgeRecord.edge.sourceServiceId === serviceId ||
-        edgeRecord.edge.targetService === record.node.serviceName ||
-        edgeRecord.edge.targetService === serviceKey
+        serviceKeys.has(edgeRecord.edge.targetService)
       ) {
         this.edges.delete(edgeKey)
         updates.push(this.createEdgeUpdate(UpdateType.UPDATE_TYPE_EDGE_REMOVED, edgeRecord.edge))
