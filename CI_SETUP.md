@@ -41,7 +41,7 @@ sudo apt-get update
 sudo apt-get install -y protobuf-compiler
 
 # Install C++ gRPC (OPTIONAL - only needed for C++ services)
-sudo apt-get install -y libgrpc++-dev protobuf-compiler-grpc
+sudo apt-get install -y libgrpc++-dev protobuf-compiler-grpc libcurl4-openssl-dev
 
 # Install Python pip (required for Python services only)
 sudo apt-get install -y python3-pip
@@ -338,14 +338,14 @@ pip install grpcio-tools protobuf
 
 ### C++ "Could not find a package configuration file provided by gRPC"
 
-If you see CMake errors about missing gRPC:
+If you see CMake errors about missing gRPC or other C++ dependencies:
 
 ```bash
-# On Debian/Ubuntu
-sudo apt-get install libgrpc++-dev protobuf-compiler-grpc
+# On Debian/Ubuntu (installs gRPC, curl, and other common deps)
+sudo apt-get install libgrpc++-dev protobuf-compiler-grpc libcurl4-openssl-dev
 
 # On macOS
-brew install grpc
+brew install grpc curl
 
 # Verify installation
 pkg-config --modversion grpc++
