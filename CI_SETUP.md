@@ -44,6 +44,9 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
+# Install Python plugins (for Python services)
+pip3 install --user grpcio-tools protobuf
+
 # Add to ~/.bashrc for persistent PATH (REQUIRED for SSH sessions)
 echo 'export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
@@ -69,6 +72,9 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
+# Install Python plugins (for Python services)
+pip3 install --user grpcio-tools protobuf
+
 # Add to ~/.zshrc for persistent PATH
 echo 'export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH' >> ~/.zshrc
 source ~/.zshrc
@@ -91,6 +97,9 @@ cargo install protoc-gen-prost protoc-gen-tonic
 # Install Go plugins (installs to %USERPROFILE%\go\bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Install Python plugins (for Python services)
+pip3 install --user grpcio-tools protobuf
 
 # Add cargo and go bins to PATH
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:USERPROFILE\go\bin;$env:PATH"
@@ -232,7 +241,7 @@ RUN pnpm install && pnpm gen && pnpm build
 
 - **No remote plugins**: All code generation happens locally, avoiding rate-limits
 - **TypeScript**: Uses `ts-proto` npm package (installed via `package.json`)
-- **Rust/Go**: Requires one-time installation of compiler plugins
+- **Rust/Go/Python**: Requires one-time installation of compiler plugins
 - **Parallel builds**: Local plugins support unlimited parallel generation
 
 ## Troubleshooting
@@ -249,6 +258,9 @@ If you see errors like `exec: "protoc-gen-prost": executable file not found in $
 
    # Check Go plugins
    ls -la ~/go/bin/protoc-gen-*
+
+   # Check Python module
+   python3 -c "import grpc_tools.protoc; print('OK')"
    ```
 
 2. **Verify PATH in your shell profile:**
@@ -264,9 +276,10 @@ If you see errors like `exec: "protoc-gen-prost": executable file not found in $
 3. **Test manually:**
 
    ```bash
-   # This should print plugin info
+   # This should print plugin info or version
    protoc-gen-prost --version
    protoc-gen-go --version
+   python3 -m grpc_tools.protoc --version
    ```
 
 4. **For SSH sessions:** Make sure your `.bashrc` or `.zshrc` is loaded for non-interactive shells:
@@ -274,3 +287,15 @@ If you see errors like `exec: "protoc-gen-prost": executable file not found in $
    # Add to ~/.bashrc or ~/.zshrc
    export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
    ```
+
+### Python "ModuleNotFoundError: No module named 'grpc_tools'"
+
+If you see Python import errors:
+
+```bash
+# Install Python gRPC tools
+pip3 install --user grpcio-tools protobuf
+
+# Verify installation
+python3 -c "import grpc_tools.protoc; print('OK')"
+```

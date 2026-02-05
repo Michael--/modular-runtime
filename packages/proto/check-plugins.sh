@@ -33,6 +33,11 @@ if ! command -v protoc-gen-go-grpc &> /dev/null; then
   MISSING+=("protoc-gen-go-grpc (install via: go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest)")
 fi
 
+# Check Python plugins
+if ! python3 -c "import grpc_tools.protoc" 2>/dev/null; then
+  MISSING+=("grpc_tools (install via: pip3 install --user grpcio-tools protobuf)")
+fi
+
 if [ ${#MISSING[@]} -eq 0 ]; then
   echo "✅ All protoc plugins are installed"
   echo ""
@@ -42,6 +47,7 @@ if [ ${#MISSING[@]} -eq 0 ]; then
   echo "  protoc-gen-tonic:    $(command -v protoc-gen-tonic)"
   echo "  protoc-gen-go:       $(command -v protoc-gen-go)"
   echo "  protoc-gen-go-grpc:  $(command -v protoc-gen-go-grpc)"
+  echo "  grpc_tools (python): $(python3 -c 'import grpc_tools.protoc; print("installed")' 2>/dev/null || echo "not found")"
   exit 0
 else
   echo "❌ Missing protoc plugins:"
@@ -55,6 +61,7 @@ else
   echo "  cargo install protoc-gen-prost protoc-gen-tonic"
   echo "  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest"
   echo "  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"
+  echo "  pip3 install --user grpcio-tools protobuf"
   echo ""
   echo "Add to your shell profile (~/.bashrc or ~/.zshrc):"
   echo "  export PATH=\$HOME/.cargo/bin:\$HOME/go/bin:\$PATH"
