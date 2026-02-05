@@ -304,6 +304,7 @@ If you see errors like `exec: "protoc-gen-prost": executable file not found in $
    # Add to ~/.bashrc or ~/.zshrc
    export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
    ```
+   **Note:** The root `package.json` CI script automatically exports PATH, so even if your shell profile isn't loaded in SSH sessions, the CI pipeline will still work.
 
 ### Python "ModuleNotFoundError: No module named 'grpc_tools'"
 

@@ -33,7 +33,7 @@
     "format:check": "prettier --check .",
     "spell": "cspell \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "husky",
-    "ci": "node ci.js"
+    "ci": "export PATH=\"$HOME/.cargo/bin:$HOME/go/bin:$PATH\" && node ci.js"
   },
   "keywords": [
     "electron",
