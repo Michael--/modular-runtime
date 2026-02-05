@@ -5,7 +5,7 @@
 Protocol buffer code generation uses **local plugins only** to avoid rate-limits and ensure consistent behavior across all environments.
 
 **Required languages:** TypeScript, Rust, Go  
-**Optional:** Python (only if you build Python services)
+**Optional:** Python (only if you build Python services), C++ (only if you build C++ services)
 
 ## One-Command Setup (Linux/macOS)
 
@@ -39,6 +39,9 @@ This will tell you exactly which plugins are missing.
 # Install protoc compiler (not strictly required for buf, but good to have)
 sudo apt-get update
 sudo apt-get install -y protobuf-compiler
+
+# Install C++ gRPC (OPTIONAL - only needed for C++ services)
+sudo apt-get install -y libgrpc++-dev protobuf-compiler-grpc
 
 # Install Python pip (required for Python services only)
 sudo apt-get install -y python3-pip
@@ -331,4 +334,19 @@ Alternatively, create a virtual environment (not recommended for CI):
 python3 -m venv .venv
 source .venv/bin/activate
 pip install grpcio-tools protobuf
+```
+
+### C++ "Could not find a package configuration file provided by gRPC"
+
+If you see CMake errors about missing gRPC:
+
+```bash
+# On Debian/Ubuntu
+sudo apt-get install libgrpc++-dev protobuf-compiler-grpc
+
+# On macOS
+brew install grpc
+
+# Verify installation
+pkg-config --modversion grpc++
 ```
