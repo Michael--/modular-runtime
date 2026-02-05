@@ -2,17 +2,14 @@
 
 ## Overview
 
-Protocol buffer code generation uses a **hybrid approach**:
-
-- **TypeScript**: Remote plugin (no CI installation needed)
-- **Rust/Go**: Local plugins (require installation on CI)
+Protocol buffer code generation uses **local plugins only** to avoid rate-limits and ensure consistent behavior across all environments.
 
 ## Required CI Dependencies
 
 ### Linux (Ubuntu/Debian)
 
 ```bash
-# Install protoc compiler
+# Install protoc compiler (not strictly required for buf, but good to have)
 sudo apt-get update
 sudo apt-get install -y protobuf-compiler
 
@@ -25,6 +22,8 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Ensure Go bin is in PATH
 export PATH=$PATH:$HOME/go/bin
+
+# TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
 
 ### macOS
@@ -42,6 +41,8 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Ensure Go bin is in PATH
 export PATH=$PATH:$HOME/go/bin
+
+# TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
 
 ### Windows
@@ -59,6 +60,8 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Add Go bin to PATH
 $env:PATH += ";$env:USERPROFILE\go\bin"
+
+# TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
 
 ## CI Pipeline Example (GitHub Actions)
@@ -151,12 +154,48 @@ RUN pnpm install && pnpm -C packages/proto gen && pnpm build
 
 ## Alternative: Docker-Based Code Generation
 
-To avoid CI dependency installation completely, use a Docker container for proto generation:
+For isolated builds, use a Docker container with all tools pre-installed:
 
-```bash
-# Run code generation in Docker
-docker run --rm -v $(pwd):/workspace -w /workspace \
-  bufbuild/buf:latest generate
+```dockerfile
+FROM node:20-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install Go
+RUN curl -OL https://go.dev/dl/go1.21.0.linux-amd64.tar.gz \
+    && tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz \
+    && rm go1.21.0.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
+
+# Install buf
+RUN curl -sSL https://github.com/bufbuild/buf/releases/download/v1.28.1/buf-Linux-x86_64 -o /usr/local/bin/buf \
+    && chmod +x /usr/local/bin/buf
+
+# Install protoc plugins
+RUN cargo install protoc-gen-prost protoc-gen-tonic && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Install pnpm
+RUN npm install -g pnpm
+
+WORKDIR /app
+COPY . .
+
+RUN pnpm install && pnpm gen && pnpm build
 ```
 
-This requires adjusting `buf.gen.yaml` to use only remote plugins (TypeScript only currently compatible).
+## Notes
+
+- **No remote plugins**: All code generation happens locally, avoiding rate-limits
+- **TypeScript**: Uses `ts-proto` npm package (installed via `package.json`)
+- **Rust/Go**: Requires one-time installation of compiler plugins
+- **Parallel builds**: Local plugins support unlimited parallel generation

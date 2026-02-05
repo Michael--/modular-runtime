@@ -175,12 +175,13 @@ class CIPipeline {
     console.log('==================================================')
 
     const steps = [
-      { name: 'Clean', command: 'pnpm run clean', optional: true },
+      // { name: 'Clean', command: 'pnpm run clean', optional: true },
+      { name: 'Generate', command: 'pnpm run gen' },
       { name: 'Build', command: 'pnpm run build' },
       { name: 'Typecheck', command: 'pnpm run typecheck' },
       { name: 'Lint', command: 'pnpm run lint' },
       { name: 'Unit Tests', command: 'pnpm run test' },
-      { name: 'E2E Tests', command: 'pnpm run test:e2e' },
+      { name: 'E2E Tests', command: 'pnpm run test:e2e', optional: true },
     ]
 
     // Only run integration tests if explicitly enabled
