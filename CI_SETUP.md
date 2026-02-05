@@ -13,15 +13,15 @@ Protocol buffer code generation uses **local plugins only** to avoid rate-limits
 sudo apt-get update
 sudo apt-get install -y protobuf-compiler
 
-# Install Rust plugins
+# Install Rust plugins (installs to ~/.cargo/bin)
 cargo install protoc-gen-prost protoc-gen-tonic
 
-# Install Go plugins
+# Install Go plugins (installs to ~/go/bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Ensure Go bin is in PATH
-export PATH=$PATH:$HOME/go/bin
+# Ensure both cargo and go bins are in PATH
+export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
 
 # TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
@@ -32,15 +32,15 @@ export PATH=$PATH:$HOME/go/bin
 # Install protoc
 brew install protobuf
 
-# Install Rust plugins
+# Install Rust plugins (installs to ~/.cargo/bin)
 cargo install protoc-gen-prost protoc-gen-tonic
 
-# Install Go plugins
+# Install Go plugins (installs to ~/go/bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Ensure Go bin is in PATH
-export PATH=$PATH:$HOME/go/bin
+# Ensure both cargo and go bins are in PATH
+export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
 
 # TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
@@ -51,15 +51,15 @@ export PATH=$PATH:$HOME/go/bin
 # Install protoc via chocolatey
 choco install protoc
 
-# Install Rust plugins
+# Install Rust plugins (installs to %USERPROFILE%\.cargo\bin)
 cargo install protoc-gen-prost protoc-gen-tonic
 
-# Install Go plugins
+# Install Go plugins (installs to %USERPROFILE%\go\bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Add Go bin to PATH
-$env:PATH += ";$env:USERPROFILE\go\bin"
+# Add cargo and go bins to PATH
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:USERPROFILE\go\bin;$env:PATH"
 
 # TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
@@ -97,6 +97,7 @@ jobs:
           cargo install protoc-gen-prost protoc-gen-tonic
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Install pnpm
@@ -199,3 +200,43 @@ RUN pnpm install && pnpm gen && pnpm build
 - **TypeScript**: Uses `ts-proto` npm package (installed via `package.json`)
 - **Rust/Go**: Requires one-time installation of compiler plugins
 - **Parallel builds**: Local plugins support unlimited parallel generation
+
+## Troubleshooting
+
+### "executable file not found in $PATH"
+
+If you see errors like `exec: "protoc-gen-prost": executable file not found in $PATH`:
+
+1. **Verify installation locations:**
+
+   ```bash
+   # Check Rust plugins
+   ls -la ~/.cargo/bin/protoc-gen-*
+
+   # Check Go plugins
+   ls -la ~/go/bin/protoc-gen-*
+   ```
+
+2. **Verify PATH in your shell profile:**
+
+   ```bash
+   # Add to ~/.bashrc or ~/.zshrc for persistent PATH
+   export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
+
+   # Then reload
+   source ~/.bashrc  # or source ~/.zshrc
+   ```
+
+3. **Test manually:**
+
+   ```bash
+   # This should print plugin info
+   protoc-gen-prost --version
+   protoc-gen-go --version
+   ```
+
+4. **For SSH sessions:** Make sure your `.bashrc` or `.zshrc` is loaded for non-interactive shells:
+   ```bash
+   # Add to ~/.bashrc or ~/.zshrc
+   export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
+   ```
