@@ -54,6 +54,10 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 # Use system packages to avoid externally-managed-environment error
 sudo apt-get install -y python3-grpc-tools python3-protobuf
 
+# Optional: For Python type stubs (.pyi files), also install:
+# sudo apt-get install -y python3-mypy-protobuf
+# (or use pip in a venv if not available as package)
+
 # Add to ~/.bashrc for persistent PATH (REQUIRED for SSH sessions)
 echo 'export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc

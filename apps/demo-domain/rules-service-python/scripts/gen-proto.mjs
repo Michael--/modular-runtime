@@ -12,7 +12,6 @@ const args = [
   'grpc_tools.protoc',
   `-I${protoRoot}`,
   `--python_out=${outputDir}`,
-  `--pyi_out=${outputDir}`,
   `--grpc_python_out=${outputDir}`,
   `${protoRoot}/pipeline/v1/pipeline.proto`,
 ]
