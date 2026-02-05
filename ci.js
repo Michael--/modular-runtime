@@ -175,7 +175,7 @@ class CIPipeline {
     console.log('==================================================')
 
     const steps = [
-      // { name: 'Clean', command: 'pnpm run clean', optional: true },
+      { name: 'Clean', command: 'pnpm run clean', optional: true },
       { name: 'Generate', command: 'pnpm run gen' },
       { name: 'Build', command: 'pnpm run build' },
       { name: 'Typecheck', command: 'pnpm run typecheck' },
