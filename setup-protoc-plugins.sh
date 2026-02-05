@@ -35,10 +35,13 @@ if ! command -v go &> /dev/null; then
     exit 1
 fi
 
-# Check if pip3 is installed (optional, only for Python services)
-if ! command -v pip3 &> /dev/null; then
+# Check if Python support should be installed
+if [ -f /etc/debian_version ]; then
+    # Debian/Ubuntu - can use apt packages, pip3 not required
+    echo "ℹ️  Python plugins will be installed via apt (system packages)"
+elif ! command -v pip3 &> /dev/null; then
+    # Other systems need pip3
     echo "⚠️  pip3 not found. Python services will not be able to generate protobuf code."
-    echo "   To install on Linux: sudo apt-get install python3-pip"
     echo "   To install on macOS: brew install python3"
     echo ""
     read -p "Continue without Python support? (y/N) " -n 1 -r
@@ -65,18 +68,26 @@ if [ "$SKIP_PYTHON" != "true" ]; then
     echo ""
     echo "📦 Installing Python plugins..."
 
-    # Check if we're on Debian/Ubuntu with externally-managed-environment
-    if [ "$PLATFORM" = "Linux" ] && [ -f /etc/debian_version ]; then
-        echo "Detected Debian/Ubuntu - using system packages"
+    # Check if we're on Debian/Ubuntu
+    if [ -f /etc/debian_version ]; then
+        echo "   Using apt (Debian/Ubuntu system packages)"
         if command -v sudo &> /dev/null; then
             sudo apt-get install -y python3-grpc-tools python3-protobuf
         else
-            echo "⚠️  sudo not available. Please run manually:"
-            echo "    apt-get install -y python3-grpc-tools python3-protobuf"
+            echo "   ⚠️  sudo not available. Please run manually:"
+            echo "       apt-get install -y python3-grpc-tools python3-protobuf"
         fi
-    else
-        # macOS or other systems
+    elif [ "$PLATFORM" = "macOS" ]; then
+        echo "   Using pip3 (macOS)"
         pip3 install --user grpcio-tools protobuf
+    else
+        # Try pip on other Linux distros
+        echo "   Using pip3"
+        if pip3 install --user grpcio-tools protobuf 2>&1 | grep -q "externally-managed"; then
+            echo "   ⚠️  pip blocked by externally-managed-environment"
+            echo "       Please install manually: sudo apt-get install python3-grpc-tools python3-protobuf"
+            echo "       Or use a virtual environment"
+        fi
     fi
 fi
 
