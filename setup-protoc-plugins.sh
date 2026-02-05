@@ -64,7 +64,20 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 if [ "$SKIP_PYTHON" != "true" ]; then
     echo ""
     echo "📦 Installing Python plugins..."
-    pip3 install --user grpcio-tools protobuf
+
+    # Check if we're on Debian/Ubuntu with externally-managed-environment
+    if [ "$PLATFORM" = "Linux" ] && [ -f /etc/debian_version ]; then
+        echo "Detected Debian/Ubuntu - using system packages"
+        if command -v sudo &> /dev/null; then
+            sudo apt-get install -y python3-grpc-tools python3-protobuf
+        else
+            echo "⚠️  sudo not available. Please run manually:"
+            echo "    apt-get install -y python3-grpc-tools python3-protobuf"
+        fi
+    else
+        # macOS or other systems
+        pip3 install --user grpcio-tools protobuf
+    fi
 fi
 
 echo ""
@@ -108,7 +121,10 @@ echo "  2. Verify installation: cd packages/proto && pnpm run check-plugins"
 if [ "$SKIP_PYTHON" = "true" ]; then
     echo ""
     echo "⚠️  Note: Python support was skipped. To enable later:"
-    echo "     sudo apt-get install python3-pip  # or brew install python3"
-    echo "     pip3 install --user grpcio-tools protobuf"
+    if [ "$PLATFORM" = "Linux" ] && [ -f /etc/debian_version ]; then
+        echo "     sudo apt-get install python3-grpc-tools python3-protobuf"
+    else
+        echo "     pip3 install --user grpcio-tools protobuf"
+    fi
 fi
 echo "  3. Generate protobuf code: pnpm gen"

@@ -51,7 +51,8 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Install Python plugins (OPTIONAL - only needed for Python services)
-pip3 install --user grpcio-tools protobuf
+# Use system packages to avoid externally-managed-environment error
+sudo apt-get install -y python3-grpc-tools python3-protobuf
 
 # Add to ~/.bashrc for persistent PATH (REQUIRED for SSH sessions)
 echo 'export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH' >> ~/.bashrc
@@ -105,6 +106,7 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Install Python plugins (OPTIONAL - only needed for Python services)
+# Use pip normally on Windows
 pip3 install --user grpcio-tools protobuf
 
 # Add cargo and go bins to PATH
@@ -299,9 +301,28 @@ If you see errors like `exec: "protoc-gen-prost": executable file not found in $
 If you see Python import errors:
 
 ```bash
-# Install Python gRPC tools
+# On Debian/Ubuntu (recommended - avoids externally-managed-environment)
+sudo apt-get install python3-grpc-tools python3-protobuf
+
+# On macOS or other systems
 pip3 install --user grpcio-tools protobuf
 
 # Verify installation
 python3 -c "import grpc_tools.protoc; print('OK')"
+```
+
+### Python "externally-managed-environment" error
+
+On modern Debian/Ubuntu (Python 3.11+), use system packages instead of pip:
+
+```bash
+sudo apt-get install python3-grpc-tools python3-protobuf
+```
+
+Alternatively, create a virtual environment (not recommended for CI):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install grpcio-tools protobuf
 ```
