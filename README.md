@@ -61,6 +61,26 @@ It is **not** a replacement for Kubernetes, service meshes, or full cloud infras
 Early stage.  
 Structure, tooling, and examples are evolving.
 
+## Setup
+
+### First-time Setup
+
+Install required protobuf code generators:
+
+```bash
+./setup-protoc-plugins.sh
+```
+
+For detailed setup instructions and CI configuration, see [CI_SETUP.md](CI_SETUP.md).
+
+### Build
+
+```bash
+pnpm install
+pnpm gen      # Generate protobuf code
+pnpm build    # Build all packages
+```
+
 ## License
 
 TBD

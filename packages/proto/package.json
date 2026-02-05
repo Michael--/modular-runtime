@@ -5,7 +5,8 @@
   "scripts": {
     "clean": "rimraf dist generated",
     "lint": "buf lint",
-    "gen": "PATH=$PWD/node_modules/.bin:$HOME/.cargo/bin:$HOME/go/bin:$PATH buf generate",
+    "check-plugins": "bash check-plugins.sh",
+    "gen": "bash check-plugins.sh && PATH=$PWD/node_modules/.bin:$HOME/.cargo/bin:$HOME/go/bin:$PATH buf generate",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "breaking": "buf breaking --against '.git#branch=main'"

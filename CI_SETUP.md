@@ -4,6 +4,30 @@
 
 Protocol buffer code generation uses **local plugins only** to avoid rate-limits and ensure consistent behavior across all environments.
 
+## One-Command Setup (Linux/macOS)
+
+```bash
+# From project root
+./setup-protoc-plugins.sh
+```
+
+This script will:
+
+- Install all required Rust and Go plugins
+- Configure your PATH automatically
+- Verify the installation
+
+## Quick Setup Check
+
+Before running builds, verify all plugins are installed:
+
+```bash
+cd packages/proto
+pnpm run check-plugins
+```
+
+This will tell you exactly which plugins are missing.
+
 ## Required CI Dependencies
 
 ### Linux (Ubuntu/Debian)
@@ -20,11 +44,17 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Ensure both cargo and go bins are in PATH
-export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
+# Add to ~/.bashrc for persistent PATH (REQUIRED for SSH sessions)
+echo 'export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify installation
+cd packages/proto && pnpm run check-plugins
 
 # TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
+
+**Important for CI/SSH:** The PATH must be set in `~/.bashrc` (or `~/.profile`) to work in non-interactive SSH sessions.
 
 ### macOS
 
@@ -39,8 +69,12 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Ensure both cargo and go bins are in PATH
-export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH
+# Add to ~/.zshrc for persistent PATH
+echo 'export PATH=$HOME/.cargo/bin:$HOME/go/bin:$PATH' >> ~/.zshrc
+source ~/.zshrc
+
+# Verify installation
+cd packages/proto && pnpm run check-plugins
 
 # TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
