@@ -35,6 +35,20 @@ if ! command -v go &> /dev/null; then
     exit 1
 fi
 
+# Check if pip3 is installed (optional, only for Python services)
+if ! command -v pip3 &> /dev/null; then
+    echo "⚠️  pip3 not found. Python services will not be able to generate protobuf code."
+    echo "   To install on Linux: sudo apt-get install python3-pip"
+    echo "   To install on macOS: brew install python3"
+    echo ""
+    read -p "Continue without Python support? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+    SKIP_PYTHON=true
+fi
+
 echo "✅ Prerequisites found"
 echo ""
 
@@ -47,9 +61,11 @@ echo "📦 Installing Go plugins..."
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-echo ""
-echo "📦 Installing Python plugins..."
-pip3 install --user grpcio-tools protobuf
+if [ "$SKIP_PYTHON" != "true" ]; then
+    echo ""
+    echo "📦 Installing Python plugins..."
+    pip3 install --user grpcio-tools protobuf
+fi
 
 echo ""
 echo "✅ All plugins installed!"
@@ -89,4 +105,10 @@ echo ""
 echo "Next steps:"
 echo "  1. Reload your shell: source $SHELL_CONFIG"
 echo "  2. Verify installation: cd packages/proto && pnpm run check-plugins"
+if [ "$SKIP_PYTHON" = "true" ]; then
+    echo ""
+    echo "⚠️  Note: Python support was skipped. To enable later:"
+    echo "     sudo apt-get install python3-pip  # or brew install python3"
+    echo "     pip3 install --user grpcio-tools protobuf"
+fi
 echo "  3. Generate protobuf code: pnpm gen"

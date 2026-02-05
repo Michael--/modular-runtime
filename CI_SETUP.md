@@ -4,6 +4,9 @@
 
 Protocol buffer code generation uses **local plugins only** to avoid rate-limits and ensure consistent behavior across all environments.
 
+**Required languages:** TypeScript, Rust, Go  
+**Optional:** Python (only if you build Python services)
+
 ## One-Command Setup (Linux/macOS)
 
 ```bash
@@ -37,6 +40,9 @@ This will tell you exactly which plugins are missing.
 sudo apt-get update
 sudo apt-get install -y protobuf-compiler
 
+# Install Python pip (required for Python services only)
+sudo apt-get install -y python3-pip
+
 # Install Rust plugins (installs to ~/.cargo/bin)
 cargo install protoc-gen-prost protoc-gen-tonic
 
@@ -44,7 +50,7 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Install Python plugins (for Python services)
+# Install Python plugins (OPTIONAL - only needed for Python services)
 pip3 install --user grpcio-tools protobuf
 
 # Add to ~/.bashrc for persistent PATH (REQUIRED for SSH sessions)
@@ -72,7 +78,7 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Install Python plugins (for Python services)
+# Install Python plugins (OPTIONAL - only needed for Python services)
 pip3 install --user grpcio-tools protobuf
 
 # Add to ~/.zshrc for persistent PATH
@@ -98,7 +104,7 @@ cargo install protoc-gen-prost protoc-gen-tonic
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-# Install Python plugins (for Python services)
+# Install Python plugins (OPTIONAL - only needed for Python services)
 pip3 install --user grpcio-tools protobuf
 
 # Add cargo and go bins to PATH
