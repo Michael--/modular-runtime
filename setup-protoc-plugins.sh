@@ -57,7 +57,8 @@ echo ""
 
 # Install Rust plugins
 echo "📦 Installing Rust plugins..."
-cargo install protoc-gen-prost protoc-gen-tonic
+# Use v0.4.1 for compatibility with tonic 0.12
+cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0
 
 echo ""
 echo "📦 Installing Go plugins..."

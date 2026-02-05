@@ -47,7 +47,7 @@ sudo apt-get install -y libgrpc++-dev protobuf-compiler-grpc libcurl4-openssl-de
 sudo apt-get install -y python3-pip
 
 # Install Rust plugins (installs to ~/.cargo/bin)
-cargo install protoc-gen-prost protoc-gen-tonic
+cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0
 
 # Install Go plugins (installs to ~/go/bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -82,7 +82,7 @@ cd packages/proto && pnpm run check-plugins
 brew install protobuf
 
 # Install Rust plugins (installs to ~/.cargo/bin)
-cargo install protoc-gen-prost protoc-gen-tonic
+cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0
 
 # Install Go plugins (installs to ~/go/bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -108,7 +108,7 @@ cd packages/proto && pnpm run check-plugins
 choco install protoc
 
 # Install Rust plugins (installs to %USERPROFILE%\.cargo\bin)
-cargo install protoc-gen-prost protoc-gen-tonic
+cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0
 
 # Install Go plugins (installs to %USERPROFILE%\go\bin)
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -154,7 +154,7 @@ jobs:
 
       - name: Install protoc plugins
         run: |
-          cargo install protoc-gen-prost protoc-gen-tonic
+          cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
@@ -200,7 +200,7 @@ RUN curl -sSL https://github.com/bufbuild/buf/releases/download/v1.28.1/buf-Linu
     && chmod +x /usr/local/bin/buf
 
 # Install protoc plugins
-RUN cargo install protoc-gen-prost protoc-gen-tonic && \
+RUN cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0 && \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
@@ -241,7 +241,7 @@ RUN curl -sSL https://github.com/bufbuild/buf/releases/download/v1.28.1/buf-Linu
     && chmod +x /usr/local/bin/buf
 
 # Install protoc plugins
-RUN cargo install protoc-gen-prost protoc-gen-tonic && \
+RUN cargo install protoc-gen-prost@0.4.0 protoc-gen-tonic@0.4.0 && \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
