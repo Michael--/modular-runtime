@@ -427,13 +427,16 @@ func (ActivityType) EnumDescriptor() ([]byte, []int) {
 
 // ServiceMetadata provides structured, optional metadata.
 type ServiceMetadata struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Region        *string                `protobuf:"bytes,1,opt,name=region,proto3,oneof" json:"region,omitempty"`
-	Environment   *string                `protobuf:"bytes,2,opt,name=environment,proto3,oneof" json:"environment,omitempty"`
-	Team          *string                `protobuf:"bytes,3,opt,name=team,proto3,oneof" json:"team,omitempty"`
-	VersionHash   *string                `protobuf:"bytes,4,opt,name=version_hash,json=versionHash,proto3,oneof" json:"version_hash,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Region           *string                `protobuf:"bytes,1,opt,name=region,proto3,oneof" json:"region,omitempty"`
+	Environment      *string                `protobuf:"bytes,2,opt,name=environment,proto3,oneof" json:"environment,omitempty"`
+	Team             *string                `protobuf:"bytes,3,opt,name=team,proto3,oneof" json:"team,omitempty"`
+	VersionHash      *string                `protobuf:"bytes,4,opt,name=version_hash,json=versionHash,proto3,oneof" json:"version_hash,omitempty"`
+	ServiceInterface *string                `protobuf:"bytes,5,opt,name=service_interface,json=serviceInterface,proto3,oneof" json:"service_interface,omitempty"`
+	ServiceRole      *string                `protobuf:"bytes,6,opt,name=service_role,json=serviceRole,proto3,oneof" json:"service_role,omitempty"`
+	ProgramName      *string                `protobuf:"bytes,7,opt,name=program_name,json=programName,proto3,oneof" json:"program_name,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ServiceMetadata) Reset() {
@@ -490,6 +493,27 @@ func (x *ServiceMetadata) GetTeam() string {
 func (x *ServiceMetadata) GetVersionHash() string {
 	if x != nil && x.VersionHash != nil {
 		return *x.VersionHash
+	}
+	return ""
+}
+
+func (x *ServiceMetadata) GetServiceInterface() string {
+	if x != nil && x.ServiceInterface != nil {
+		return *x.ServiceInterface
+	}
+	return ""
+}
+
+func (x *ServiceMetadata) GetServiceRole() string {
+	if x != nil && x.ServiceRole != nil {
+		return *x.ServiceRole
+	}
+	return ""
+}
+
+func (x *ServiceMetadata) GetProgramName() string {
+	if x != nil && x.ProgramName != nil {
+		return *x.ProgramName
 	}
 	return ""
 }
@@ -1791,16 +1815,22 @@ var File_runtime_v1_topology_proto protoreflect.FileDescriptor
 const file_runtime_v1_topology_proto_rawDesc = "" +
 	"\n" +
 	"\x19runtime/v1/topology.proto\x12\n" +
-	"runtime.v1\"\xcb\x01\n" +
+	"runtime.v1\"\x85\x03\n" +
 	"\x0fServiceMetadata\x12\x1b\n" +
 	"\x06region\x18\x01 \x01(\tH\x00R\x06region\x88\x01\x01\x12%\n" +
 	"\venvironment\x18\x02 \x01(\tH\x01R\venvironment\x88\x01\x01\x12\x17\n" +
 	"\x04team\x18\x03 \x01(\tH\x02R\x04team\x88\x01\x01\x12&\n" +
-	"\fversion_hash\x18\x04 \x01(\tH\x03R\vversionHash\x88\x01\x01B\t\n" +
+	"\fversion_hash\x18\x04 \x01(\tH\x03R\vversionHash\x88\x01\x01\x120\n" +
+	"\x11service_interface\x18\x05 \x01(\tH\x04R\x10serviceInterface\x88\x01\x01\x12&\n" +
+	"\fservice_role\x18\x06 \x01(\tH\x05R\vserviceRole\x88\x01\x01\x12&\n" +
+	"\fprogram_name\x18\a \x01(\tH\x06R\vprogramName\x88\x01\x01B\t\n" +
 	"\a_regionB\x0e\n" +
 	"\f_environmentB\a\n" +
 	"\x05_teamB\x0f\n" +
-	"\r_version_hash\"T\n" +
+	"\r_version_hashB\x14\n" +
+	"\x12_service_interfaceB\x0f\n" +
+	"\r_service_roleB\x0f\n" +
+	"\r_program_name\"T\n" +
 	"\x0eServiceMetrics\x12\x1f\n" +
 	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
 	"cpuPercent\x12!\n" +
