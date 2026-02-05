@@ -70,6 +70,8 @@ cd packages/proto && pnpm run check-plugins
 
 **Important for CI/SSH:** The PATH must be set in `~/.bashrc` (or `~/.profile`) to work in non-interactive SSH sessions.
 
+**After installation:** Log out and log back in (or run `source ~/.bashrc`) to ensure the PATH is loaded in your shell.
+
 ### macOS
 
 ```bash

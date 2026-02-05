@@ -126,8 +126,12 @@ fi
 echo ""
 echo "🎉 Setup complete!"
 echo ""
+echo "⚠️  IMPORTANT: You must reload your shell for the PATH changes to take effect:"
+echo "   source $SHELL_CONFIG"
+echo "   OR log out and log back in (recommended for SSH sessions)"
+echo ""
 echo "Next steps:"
-echo "  1. Reload your shell: source $SHELL_CONFIG"
+echo "  1. Reload your shell (see above)"
 echo "  2. Verify installation: cd packages/proto && pnpm run check-plugins"
 if [ "$SKIP_PYTHON" = "true" ]; then
     echo ""
