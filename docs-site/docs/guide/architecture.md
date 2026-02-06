@@ -83,6 +83,16 @@ Operating systems and platform tooling (for example Linux service managers or cl
 
 These constraints are known and intentional. The goal here is a clear, local-first runtime for experiments and demos, not a full platform replacement.
 
+## Topology and Dashboard
+
+The runtime also includes a topology stack and a dashboard for live observability:
+
+- **Topology stack:** `apps/topology` bundles the gRPC topology service, an SSE proxy, and a reporter HTTP proxy.
+- **Dashboard:** `apps/dashboard` renders the live topology graph, service list, active connections, and stream status.
+- **Reporter client:** `apps/topology-reporter-rust` provides a Rust helper for registering services and reporting activity.
+
+This layer makes it easier to verify that services are registered, connected, and actively communicating while the supervisor is running.
+
 ## Demo Pipeline Flow
 
 The split pipeline processes events through five stages:

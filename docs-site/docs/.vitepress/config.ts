@@ -37,6 +37,7 @@ const config = withMermaid(
             text: 'Guide',
             items: [
               { text: 'Overview', link: '/guide/overview' },
+              { text: 'Setup & CI', link: '/guide/ci-setup' },
               { text: 'Why Split', link: '/guide/why-split' },
               { text: 'Architecture', link: '/guide/architecture' },
               { text: 'Workspaces', link: '/guide/workspaces' },

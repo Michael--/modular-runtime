@@ -29,4 +29,4 @@ This documentation is split into two tracks:
 - Practical rationale for splitting into services and how the runtime is structured.
 - A concrete example implementation that shows the broker, supervisor, and pipeline services working together.
 
-Start with the Guide overview for the overall structure and then drill into the demo scenarios and results.
+Start with the Guide overview for the overall structure, then drill into the demo scenarios and results. For environment setup and CI details, see [Setup & CI](/guide/ci-setup).

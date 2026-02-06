@@ -16,9 +16,9 @@ Key pieces:
 - Orchestrator: `apps/demo-domain/pipeline-orchestrator`
 - Scenario scripts and results: `examples/demo-scenarios`
 
-## Runtime and Supervision
+## Runtime, Supervision, and Observability
 
-Location: `apps/supervisor` and `packages/broker`
+Location: `apps/supervisor`, `packages/broker`, `apps/topology`, `apps/dashboard`
 
 Purpose: run and connect services locally as separate processes.
 
@@ -29,3 +29,9 @@ The supervisor config in `apps/supervisor/config.yaml` shows the active process 
 - Calculator clients: `apps/calculator-client`, `apps/calculator-client-rust`, `apps/calculator-client-cpp`
 
 This area is the practical runtime for starting and managing services. The demo domain focuses on the pipeline example.
+
+The observability stack adds a topology service and a UI dashboard:
+
+- Topology stack: `apps/topology` (gRPC topology service, SSE proxy, reporter proxy)
+- Dashboard: `apps/dashboard` (live graph, services, connections, and stream status)
+- Reporter client: `apps/topology-reporter-rust` (Rust helper for topology reporting)
