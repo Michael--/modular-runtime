@@ -50,18 +50,18 @@ flowchart LR
     ORC -->|starts manually| AGG
     ORC -->|starts manually| SNK
 
-    ORC -->|gRPC| ING
-    ING -->|gRPC| PRS
-    PRS -->|gRPC| RUL
-    RUL -->|gRPC| AGG
-    AGG -->|gRPC| SNK
+    ORC <-->|streamEvents<br/>server stream| ING
+    ORC <-->|parseEvents<br/>stream| PRS
+    ORC <-->|applyRules<br/>stream| RUL
+    ORC <-->|aggregate<br/>stream| AGG
+    ORC <-->|writeResults<br/>client stream| SNK
 
     style ORC stroke:#9933cc,stroke-width:3px
 ```
 
 **Components:**
 
-- **Orchestrator:** demo script that starts services and coordinates the pipeline
+- **Orchestrator:** demo script that starts services and forwards data between stages
 - **Services:** hardcoded ports, no service discovery
 - **No Supervisor/Broker:** services are started by the demo script directly
 
@@ -71,6 +71,7 @@ flowchart LR
 - **Demo pipeline** focuses on performance measurements without the overhead of service discovery
 
 The demo pipeline scripts (`run-split-pipeline.mjs`) spawn services as child processes with fixed ports.
+The orchestrator is the gRPC client for all pipeline services; services do not open direct gRPC connections to each other.
 :::
 
 ## Supervisor Scope and Limitations
@@ -89,7 +90,8 @@ The runtime also includes a topology stack and a dashboard for live observabilit
 
 - **Topology stack:** `apps/topology` bundles the gRPC topology service, an SSE proxy, and a reporter HTTP proxy.
 - **Dashboard:** `apps/dashboard` renders the live topology graph, service list, active connections, and stream status.
-- **Reporter client:** `apps/topology-reporter-rust` provides a Rust helper for registering services and reporting activity.
+- **Reporter client (TypeScript):** `packages/topology-reporter` provides a reusable gRPC reporter library.
+- **Reporter client (Rust):** `apps/topology-reporter-rust` provides a Rust helper for registering services and reporting activity.
 
 This layer makes it easier to verify that services are registered, connected, and actively communicating while the supervisor is running.
 
@@ -99,12 +101,14 @@ The split pipeline processes events through five stages:
 
 ```mermaid
 flowchart LR
-    A[Ingest<br/>Read NDJSON] -->|gRPC stream| B[Parse<br/>Validate & Structure]
-    B -->|gRPC stream| C[Rules<br/>Filter & Enrich]
-    C -->|gRPC stream| D[Aggregate<br/>Compute Stats]
-    D -->|gRPC stream| E[Sink<br/>Write Results]
+    A[Ingest<br/>Read NDJSON] -->|events| O[Orchestrator]
+    O -->|parse stream| B[Parse<br/>Validate & Structure]
+    O -->|rules stream| C[Rules<br/>Filter & Enrich]
+    O -->|aggregate stream| D[Aggregate<br/>Compute Stats]
+    O -->|results stream| E[Sink<br/>Write Results]
 
     style A stroke:#0066cc,stroke-width:3px
+    style O stroke:#000000,stroke-width:3px
     style B stroke:#ff9900,stroke-width:3px
     style C stroke:#cc0066,stroke-width:3px
     style D stroke:#00cc66,stroke-width:3px
@@ -113,16 +117,20 @@ flowchart LR
 
 **Stage responsibilities:**
 
-1. **Ingest** - reads NDJSON and streams events to Parse
+1. **Ingest** - reads NDJSON and streams events to the orchestrator
 2. **Parse** - validates JSON, structures data, handles WorkItems
 3. **Rules** - filters events (e.g., removes 'view' events), enriches data
 4. **Aggregate** - computes counts, sums, and averages per event type
 5. **Sink** - writes final results and prints metrics
 
-Each arrow represents a **bidirectional gRPC streaming connection**. Services can be implemented in any language with gRPC support.
+gRPC pattern by stage:
+
+- **Ingest:** server-streaming RPC to orchestrator
+- **Parse / Rules / Aggregate:** streaming RPCs used by orchestrator
+- **Sink:** client-streaming RPC from orchestrator with a final summary response
 
 ::: tip Performance Impact
-Without batching, each event triggers a separate gRPC call, leading to 85% IPC overhead. With batching (size=100), overhead is amortized and throughput increases 3x.
+Without batching, the orchestrator writes one message per event into parse/rules/aggregate streams, leading to high IPC overhead. With batching (size=100), stream writes on these legs are heavily amortized and throughput improves significantly.
 
 See [Performance Deep Dive](/guide/performance) for detailed analysis.
 :::

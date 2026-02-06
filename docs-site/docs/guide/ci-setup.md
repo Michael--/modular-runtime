@@ -32,7 +32,7 @@ This executes the same pipeline CI uses:
 - Typecheck
 - Lint
 - Unit tests
-- E2E tests (optional)
+- E2E tests (optional, non-blocking)
 
 Integration tests only run when `RUN_INTEGRATION_TESTS=true` is set.
 

@@ -2,7 +2,7 @@
 
 The modular-runtime repository explores how to break a large, local monolith into multiple services without relying on Kubernetes or cloud infrastructure.
 
-Three working areas are represented:
+Four working areas are represented:
 
 1. Demo pipeline scenarios
    - Location: `examples/demo-scenarios` and `apps/demo-domain`
@@ -14,7 +14,12 @@ Three working areas are represented:
    - Purpose: manage and connect services in a local, process-based runtime and visualize live topology.
    - Focus: starting, monitoring, wiring services together, and reporting runtime health.
 
-3. Setup and CI
+3. Shared packages and contracts
+   - Location: `packages/proto`, `packages/pipeline-common`, `packages/common`, `packages/topology-reporter`
+   - Purpose: provide stable contracts and reusable building blocks across apps.
+   - Focus: generated protobuf APIs, shared metrics, topology reporting, and runtime utilities.
+
+4. Setup and CI
    - Location: `CI_SETUP.md`, `ci.js`, `packages/proto/check-plugins.sh`
    - Purpose: ensure reproducible polyglot builds across local dev and CI.
    - Focus: protobuf plugin setup, CI pipeline, and cross-platform build readiness.

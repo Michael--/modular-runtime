@@ -8,19 +8,27 @@ The split pipeline processes events through five stages:
 
 ```mermaid
 flowchart LR
-    A[Ingest] -->|gRPC stream| B[Parse]
-    B -->|gRPC stream| C[Rules]
-    C -->|gRPC stream| D[Aggregate]
-    D -->|gRPC stream| E[Sink]
+    A[Ingest] -->|events| O[Orchestrator]
+    O -->|parse stream| B[Parse]
+    O -->|rules stream| C[Rules]
+    O -->|aggregate stream| D[Aggregate]
+    O -->|results stream| E[Sink]
 
     style A stroke:#0066cc,stroke-width:3px
+    style O stroke:#000000,stroke-width:3px
     style B stroke:#ff9900,stroke-width:3px
     style C stroke:#cc0066,stroke-width:3px
     style D stroke:#00cc66,stroke-width:3px
     style E stroke:#9933cc,stroke-width:3px
 ```
 
-Each arrow represents a gRPC streaming connection. Without batching, every event triggers a separate gRPC call with full serialization, network stack traversal, and deserialization overhead.
+Transport details:
+
+- Ingest -> Orchestrator uses server-streaming RPC.
+- Parse/Rules/Aggregate are streaming RPCs driven by the orchestrator.
+- Orchestrator -> Sink uses client-streaming RPC with a final summary response.
+
+Without batching, every event still becomes an individual stream write on parse/rules/aggregate legs, so serialization and IPC overhead dominate.
 
 ## IPC Overhead Problem
 
@@ -36,7 +44,7 @@ The split pipeline spends **85.6% of time** on inter-process communication, whil
 
 ## Batching Solution
 
-End-to-end batching groups multiple events into a single gRPC call:
+Inter-stage batching groups multiple events into one stream write on parse/rules/aggregate:
 
 ```mermaid
 graph TB
@@ -56,7 +64,7 @@ graph TB
     end
 ```
 
-**Impact:** At batch_size=100, gRPC calls are reduced by ~100x (100,000 events → ~1,000 calls).
+**Impact:** At `batch_size=100`, parse/rules/aggregate writes drop from roughly `300,000` to `3,000` for 100,000 events.
 
 ## Throughput Scaling
 

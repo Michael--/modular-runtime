@@ -1,6 +1,6 @@
 # Results Summary
 
-This section summarizes measured results from the demo scenarios. Numbers come from repeated runs and are included for relative comparison.
+This section summarizes measured results from the demo scenarios. Numbers come from repeated runs in `examples/demo-scenarios/RESULTS.md` and are included for relative comparison.
 
 ::: tip Next Steps
 For detailed explanations of **why** these numbers look this way, see:
@@ -15,7 +15,7 @@ For detailed explanations of **why** these numbers look this way, see:
 - 📊 **Events (100k):** split without batching is ~0.57x monolith throughput
 - 🚀 **With batching (50-100):** split reaches **1.75x monolith throughput**
 - 🎯 **Optimal batch size:** 50-100 events per gRPC call
-- 🦀 **Polyglot works:** Rust/Python/Go match TypeScript performance and produce identical results
+- 🦀 **Polyglot works:** with batching, Rust/Python/Go is close to (or slightly above) TypeScript and produces identical results
 - 💪 **CPU-bound workloads:** processing dominates (87-92%); batching impact is minimal
 - ⚡ **Rust optimized:** with release builds, Rust outperforms Node.js by 3% for events
 
@@ -26,7 +26,7 @@ Baseline (no batching):
 | Metric            | Monolith (C++) | Split (no batch) | Ratio |
 | ----------------- | -------------- | ---------------- | ----- |
 | Processing time   | 1.4s           | 3.95s            | 2.8x  |
-| Throughput        | 44,0/s         | 24,7/s           | 0.56x |
+| Throughput        | 44,071/s       | 24,700/s         | 0.56x |
 | Latency per event | 0.023ms        | 0.040ms          | 1.7x  |
 | IPC overhead      | 1.21%          | 85.6%            | 71x   |
 | Results           | correct        | correct          | match |
@@ -42,7 +42,7 @@ graph LR
     style D stroke:#0066cc,stroke-width:4px
 ```
 
-End-to-end batching:
+Batching impact:
 
 | Batch size | Processing time | Throughput | vs baseline | vs monolith | IPC overhead |
 | ---------- | --------------- | ---------- | ----------- | ----------- | ------------ |

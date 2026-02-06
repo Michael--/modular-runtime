@@ -20,20 +20,29 @@ Monolith:
 pnpm demo:monolith -- --count 100000 --no-checksum
 ```
 
-Split pipeline:
+Split pipeline baseline (batching disabled by default):
 
 ```bash
 pnpm demo:split -- --count 100000
 ```
 
+Split pipeline with batching:
+
+```bash
+pnpm demo:split:batch100
+```
+
 ## Scripts (root package.json)
 
 - `pnpm demo:monolith` -> `examples/demo-scenarios/run-monolith.mjs`
+- `pnpm demo:monolith:run` -> monolith preset (`--count 100000 --no-checksum`)
+- `pnpm demo:monolith:verify` -> deterministic check (`--verify`)
 - `pnpm demo:split` -> `examples/demo-scenarios/run-split-pipeline.mjs`
 - `pnpm demo:split:baseline` -> split pipeline, batching disabled
 - `pnpm demo:split:batch10|batch50|batch100|batch1000` -> batching presets
 - `pnpm demo:split:full` -> split pipeline with batching enabled
 - `pnpm demo:split:polyglot` -> Rust/Python/Go services
+- `pnpm demo:split:polyglot:baseline|batch50|batch100` -> polyglot presets
 - `pnpm demo:workload:10000|50000|100000` -> work-items workload presets
 
 ## Split Pipeline Defaults
@@ -41,7 +50,8 @@ pnpm demo:split -- --count 100000
 - Count: 100000
 - Users: 10000
 - Seed: 42
-- Batch size: 100
+- Batching: disabled
+- Batch size parameter: 100 (applies only with `--enable-batching`)
 - Workload: events
 - Payload size: medium
 - Iterations: 500
@@ -58,6 +68,7 @@ Notable flags:
 ## Output Files
 
 - Monolith: `examples/demo-scenarios/aggregate-results.ndjson`
+- Monolith verify mode: `examples/demo-scenarios/aggregate-results.verify.ndjson`
 - Split: `examples/demo-scenarios/aggregate-results-split.ndjson`
 
 ## Expected Output Shape (events)
