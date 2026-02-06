@@ -22,6 +22,15 @@ jobs:
   ci:
     name: CI (Linux)
     runs-on: ubuntu-latest
+    env:
+      GO_VERSION: '1.22'
+      PYTHON_VERSION: '3.11'
+      PROTOC_GEN_PROST_VERSION: '0.4.0'
+      PROTOC_GEN_TONIC_VERSION: '0.4.0'
+      PROTOC_GEN_GO_VERSION: 'v1.36.11'
+      PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.0'
+      PY_GRPCIO_TOOLS_VERSION: '1.66.1'
+      PY_PROTOBUF_VERSION: '4.25.5'
 
     steps:
       - name: Checkout repository
@@ -39,7 +48,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -47,7 +56,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup buf CLI
         uses: bufbuild/buf-setup-action@v1
@@ -55,18 +64,21 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libgrpc++-dev protobuf-compiler-grpc libcurl4-openssl-dev
+          sudo apt-get install -y build-essential cmake pkg-config protobuf-compiler libgrpc++-dev protobuf-compiler-grpc libcurl4-openssl-dev
 
       - name: Install protoc plugins
         run: |
-          cargo install protoc-gen-prost --version 0.4.0
-          cargo install protoc-gen-tonic --version 0.4.0
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-          python -m pip install --user grpcio-tools protobuf
+          cargo install protoc-gen-prost --version "${PROTOC_GEN_PROST_VERSION}" --locked
+          cargo install protoc-gen-tonic --version "${PROTOC_GEN_TONIC_VERSION}" --locked
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@"${PROTOC_GEN_GO_VERSION}"
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@"${PROTOC_GEN_GO_GRPC_VERSION}"
+          python -m pip install "grpcio-tools==${PY_GRPCIO_TOOLS_VERSION}" "protobuf==${PY_PROTOBUF_VERSION}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify protoc plugin toolchain
+        run: pnpm -C packages/proto run check-plugins
 
       - name: Run CI
         run: pnpm run ci
