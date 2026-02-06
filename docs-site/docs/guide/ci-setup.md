@@ -13,8 +13,8 @@ If anything is missing, follow the full instructions in `CI_SETUP.md`.
 
 ## Platform Support
 
-- Development and builds are verified on macOS and Linux.
-- Windows has not been fully tested yet.
+- Verified and supported: **macOS** and **Linux**.
+- Windows is **experimental and currently unverified**. It is documented as a baseline, but may require manual rework and is not considered out-of-the-box support.
 
 ## CI Pipeline Script
 

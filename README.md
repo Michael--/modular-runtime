@@ -61,6 +61,13 @@ It is **not** a replacement for Kubernetes, service meshes, or full cloud infras
 Early stage.  
 Structure, tooling, and examples are evolving.
 
+## Platform Support
+
+- Verified and supported: **macOS**, **Linux**
+- Experimental and currently unverified: **Windows**
+
+Windows instructions exist as a starting point, but they are not validated end-to-end and may require manual rework.
+
 ## Setup
 
 ### First-time Setup

@@ -7,6 +7,13 @@ Protocol buffer code generation uses **local plugins only** to avoid rate-limits
 **Required languages:** TypeScript, Rust, Go  
 **Optional:** Python (only if you build Python services), C++ (only if you build C++ services)
 
+## Platform Support Status
+
+- **Verified:** Linux, macOS
+- **Unverified (experimental):** Windows
+
+Windows commands are documented as a baseline only. They are currently not validated end-to-end in this repository and should not be considered out-of-the-box support.
+
 ## One-Command Setup (Linux/macOS)
 
 ```bash
@@ -101,7 +108,9 @@ cd packages/proto && pnpm run check-plugins
 # TypeScript plugin is installed via npm (ts-proto in package.json)
 ```
 
-### Windows
+### Windows (Experimental / Unverified)
+
+> Current status: documented baseline only. Expect manual adjustments.
 
 ```powershell
 # Install protoc via chocolatey
