@@ -23,14 +23,14 @@ jobs:
     name: CI (Linux)
     runs-on: ubuntu-latest
     env:
-      GO_VERSION: '1.22'
+      GO_VERSION: '1.24.x'
       PYTHON_VERSION: '3.11'
       PROTOC_GEN_PROST_VERSION: '0.4.0'
       PROTOC_GEN_TONIC_VERSION: '0.4.0'
       PROTOC_GEN_GO_VERSION: 'v1.36.11'
       PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.0'
       PY_GRPCIO_TOOLS_VERSION: '1.66.1'
-      PY_PROTOBUF_VERSION: '4.25.5'
+      PY_PROTOBUF_VERSION: '5.27.2'
 
     steps:
       - name: Checkout repository
