@@ -17,6 +17,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.2
         version: 9.39.2
+      '@number10/ci-runner-cli':
+        specifier: file:/Volumes/MR-SX5/projects/localci/.artifacts/packs/number10-ci-runner-cli-0.1.0.tgz
+        version: file:../localci/.artifacts/packs/number10-ci-runner-cli-0.1.0.tgz
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.53.1
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
@@ -1656,6 +1659,12 @@ packages:
 
   '@microsoft/tsdoc@0.16.0':
     resolution: {integrity: sha512-xgAyonlVVS+q7Vc7qLW0UrJU7rSFcETRWsqdXZtjzRU8dF+6CkozTK4V4y1LwOX7j8r/vHphjDeMeGI4tNGeGA==}
+
+  '@number10/ci-runner-cli@file:../localci/.artifacts/packs/number10-ci-runner-cli-0.1.0.tgz':
+    resolution: {integrity: sha512-OI5cHFT+dZf2JsjDhJxRfUIhQMcH7r4zneoC4GZfxMvbcNV/Cunf8NDON1t6jmWUFTFBXx8nJm4LRNodc7v7uA==, tarball: file:../localci/.artifacts/packs/number10-ci-runner-cli-0.1.0.tgz}
+    version: 0.1.0
+    engines: {node: '>=20.19.0', pnpm: '>=10.28.1'}
+    hasBin: true
 
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
@@ -5467,6 +5476,10 @@ snapshots:
       resolve: 1.22.11
 
   '@microsoft/tsdoc@0.16.0': {}
+
+  '@number10/ci-runner-cli@file:../localci/.artifacts/packs/number10-ci-runner-cli-0.1.0.tgz':
+    dependencies:
+      typescript: 5.9.3
 
   '@pkgr/core@0.2.9': {}
 
