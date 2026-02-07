@@ -37,6 +37,11 @@ const config = {
       name: 'Integration Tests',
       command: 'pnpm run test:integration',
       optional: true,
+      when: {
+        env: {
+          RUN_INTEGRATION_TESTS: 'true',
+        },
+      },
     },
     {
       id: 'unit-tests',
