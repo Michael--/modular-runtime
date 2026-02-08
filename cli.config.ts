@@ -12,7 +12,7 @@ const config = {
       name: 'Clean',
       command: 'pnpm run clean',
       optional: true,
-      enabled: true, // Enabled by default, but can be disabled with env var for faster iteration when cleaning is not needed
+      enabled: false, // Enabled by default, but can be disabled with env var for faster iteration when cleaning is not needed
     },
     {
       id: 'gen',

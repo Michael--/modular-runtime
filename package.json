@@ -34,7 +34,7 @@
     "spell": "cspell \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "husky",
     "ci:prepare": "export PATH=\"$HOME/.cargo/bin:$HOME/go/bin:$PATH\"",
-    "ci": "pnpm run ci:prepare && node node_modules/@number10/ci-runner-cli/dist/cli.js --config cli.config.ts",
+    "ci": "pnpm run ci:prepare && ci-runner --config cli.config.ts",
     "docs:build": "pnpm -C docs-site build"
   },
   "keywords": [
