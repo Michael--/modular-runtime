@@ -1,6 +1,7 @@
 import type { CiRunnerConfig } from '@number10/ci-runner-cli/types'
 
 const config = {
+  cwd: '.',
   output: {
     format: 'pretty',
     verbose: false,
@@ -11,6 +12,7 @@ const config = {
       name: 'Clean',
       command: 'pnpm run clean',
       optional: true,
+      enabled: false,
     },
     {
       id: 'gen',
