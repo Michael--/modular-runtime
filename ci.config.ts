@@ -1,12 +1,37 @@
 import type { CiRunnerConfig } from '@number10/ci-runner-cli/types'
 
 const config = {
+  continueOnError: true,
   cwd: '.',
+  env: {
+    FORCE_COLOR: '1',
+  },
   output: {
     format: 'pretty',
     verbose: false,
   },
+  watch: {
+    exclude: [
+      '.temp',
+      '.parcel-cache',
+      '.husky',
+      'node_modules',
+      'dist',
+      'build',
+      'target',
+      'generated',
+      'bin/**',
+      '*.mjs',
+      'examples/**',
+      'aggregate-results*.ndjson',
+    ],
+  },
   steps: [
+    {
+      id: 'prepare',
+      name: 'CI Prepare',
+      command: 'pnpm run ci:prepare',
+    },
     {
       id: 'clean',
       name: 'Clean',
@@ -55,6 +80,23 @@ const config = {
       name: 'E2E Tests',
       command: 'pnpm run test:e2e',
       optional: true,
+    },
+  ],
+  targets: [
+    {
+      id: 'quick',
+      name: 'Quick Checks',
+      includeStepIds: ['typecheck', 'lint'],
+    },
+    {
+      id: 'build',
+      name: 'Build Only',
+      includeStepIds: ['prepare', 'gen', 'build'],
+    },
+    {
+      id: 'test',
+      name: 'Tests Only',
+      includeStepIds: ['unit-tests'],
     },
   ],
 } satisfies CiRunnerConfig

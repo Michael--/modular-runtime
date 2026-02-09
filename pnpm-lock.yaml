@@ -18,8 +18,8 @@ importers:
         specifier: ^9.39.2
         version: 9.39.2
       '@number10/ci-runner-cli':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.1
+        version: 0.2.1
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.53.1
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
@@ -1660,8 +1660,8 @@ packages:
   '@microsoft/tsdoc@0.16.0':
     resolution: {integrity: sha512-xgAyonlVVS+q7Vc7qLW0UrJU7rSFcETRWsqdXZtjzRU8dF+6CkozTK4V4y1LwOX7j8r/vHphjDeMeGI4tNGeGA==}
 
-  '@number10/ci-runner-cli@0.1.0':
-    resolution: {integrity: sha512-wIY9wyntfuAX6lhIufBZkmBcorU/9UlutYzU3UEdqankfidM6QMvTNk5+DWwD9af/HJnwVglkkL5qC7rB+fqNQ==}
+  '@number10/ci-runner-cli@0.2.1':
+    resolution: {integrity: sha512-CHEQCiHPXQDaCcbaUX+hNViLXpI4VxKjp9GijaoGfdP4iPCW+5qdTPICSNC7rAwwcmBJNdOFSmPIp/4SXHBQfQ==}
     engines: {node: '>=20.19.0', pnpm: '>=10.28.1'}
     hasBin: true
 
@@ -5476,7 +5476,7 @@ snapshots:
 
   '@microsoft/tsdoc@0.16.0': {}
 
-  '@number10/ci-runner-cli@0.1.0':
+  '@number10/ci-runner-cli@0.2.1':
     dependencies:
       typescript: 5.9.3
 
